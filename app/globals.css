@@ -4,58 +4,153 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    /* Light Theme - Soft Neutral with Muted Pastels */
+    --background: 0 0% 98%;
+    /* #fafafa - pure soft white */
+    --foreground: 0 0% 15%;
+    /* #262626 - true neutral dark */
+
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    /* #ffffff - pure white */
+    --card-foreground: 0 0% 15%;
+    /* #262626 - true neutral dark */
+
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    /* #ffffff - pure white */
+    --popover-foreground: 0 0% 15%;
+    /* #262626 - true neutral dark */
+
+    --primary: 240 30% 50%;
+    /* #5c6bc0 - soft periwinkle */
+    --primary-foreground: 0 0% 100%;
+    /* #ffffff - white text on primary */
+
+    --secondary: 0 0% 90%;
+    /* #e6e6e6 - soft neutral gray */
+    --secondary-foreground: 0 0% 25%;
+    /* #404040 - medium neutral */
+
+    --accent: 280 25% 65%;
+    /* #a991c7 - soft lavender */
+    --accent-foreground: 0 0% 20%;
+    /* #333333 - dark neutral */
+
+    --muted: 0 0% 94%;
+    /* #f0f0f0 - very light neutral */
+    --muted-foreground: 0 0% 45%;
+    /* #737373 - medium neutral */
+
+    --destructive: 0 40% 60%;
+    /* #b36666 - muted coral */
+    --destructive-foreground: 0 0% 100%;
+    /* #ffffff - white */
+
+    --border: 0 0% 88%;
+    /* #e0e0e0 - light neutral border */
+    --input: 0 0% 96%;
+    /* #f5f5f5 - very light neutral input */
+    --ring: 240 30% 50%;
+    /* #5c6bc0 - soft periwinkle focus ring */
+
+    --radius: 0.75rem;
+
+    /* Soft Muted Neon Colors */
+    --neon-pink: 330 30% 70%;
+    /* #c799b3 - dusty pink */
+    --neon-blue: 210 35% 65%;
+    /* #7ea3c7 - soft steel blue */
+    --neon-green: 150 25% 65%;
+    /* #8bb3a3 - sage green */
+    --neon-orange: 25 40% 70%;
+    /* #c7a284 - muted apricot */
+    --neon-purple: 270 30% 65%;
+    /* #9b8ac7 - soft purple */
+
+    /* Chart Colors - Light Theme */
+    --chart-1: 240 30% 50%;
+    /* #5c6bc0 - soft periwinkle */
+    --chart-2: 280 25% 65%;
+    /* #a991c7 - soft lavender */
+    --chart-3: 330 30% 70%;
+    /* #c799b3 - dusty pink */
+    --chart-4: 150 25% 65%;
+    /* #8bb3a3 - sage green */
+    --chart-5: 25 40% 70%;
+    /* #c7a284 - muted apricot */
   }
 
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    /* Dark Theme - Deep Neutral with Soft Glows */
+    --background: 0 0% 7%;
+    /* #121212 - true deep neutral */
+    --foreground: 0 0% 92%;
+    /* #ebebeb - soft neutral white */
+
+    --card: 0 0% 10%;
+    /* #1a1a1a - neutral dark card */
+    --card-foreground: 0 0% 92%;
+    /* #ebebeb - soft neutral white */
+
+    --popover: 0 0% 10%;
+    /* #1a1a1a - neutral dark */
+    --popover-foreground: 0 0% 92%;
+    /* #ebebeb - soft neutral white */
+
+    --primary: 240 40% 65%;
+    /* #7c8ed6 - bright soft periwinkle */
+    --primary-foreground: 0 0% 7%;
+    /* #121212 - dark for contrast */
+
+    --secondary: 0 0% 18%;
+    /* #2e2e2e - medium neutral dark */
+    --secondary-foreground: 0 0% 85%;
+    /* #d9d9d9 - light neutral */
+
+    --accent: 280 35% 75%;
+    /* #baa6d9 - bright soft lavender */
+    --accent-foreground: 0 0% 7%;
+    /* #121212 - dark for contrast */
+
+    --muted: 0 0% 14%;
+    /* #242424 - neutral dark gray */
+    --muted-foreground: 0 0% 65%;
+    /* #a6a6a6 - medium neutral gray */
+
+    --destructive: 0 50% 70%;
+    /* #d98080 - bright muted coral */
+    --destructive-foreground: 0 0% 100%;
+    /* #ffffff - white */
+
+    --border: 0 0% 20%;
+    /* #333333 - neutral dark border */
+    --input: 0 0% 16%;
+    /* #292929 - neutral dark input */
+    --ring: 240 40% 65%;
+    /* #7c8ed6 - bright soft periwinkle focus ring */
+
+    /* Enhanced Soft Colors for Dark Mode */
+    --neon-pink: 330 40% 75%;
+    /* #d9a6c7 - bright dusty pink */
+    --neon-blue: 210 45% 70%;
+    /* #8fb8d9 - bright steel blue */
+    --neon-green: 150 35% 70%;
+    /* #99c7b3 - bright sage */
+    --neon-orange: 25 50% 75%;
+    /* #d9b899 - bright apricot */
+    --neon-purple: 270 40% 70%;
+    /* #a899d9 - bright soft purple */
+
+    /* Chart Colors - Dark Theme */
+    --chart-1: 240 40% 65%;
+    /* #7c8ed6 - bright soft periwinkle */
+    --chart-2: 280 35% 75%;
+    /* #baa6d9 - bright soft lavender */
+    --chart-3: 330 40% 75%;
+    /* #d9a6c7 - bright dusty pink */
+    --chart-4: 150 35% 70%;
+    /* #99c7b3 - bright sage */
+    --chart-5: 25 50% 75%;
+    /* #d9b899 - bright apricot */
   }
 }
 
@@ -63,7 +158,184 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Enhanced smooth transitions */
+  * {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Enhanced focus states with neon glow */
+  *:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(var(--ring)),
+      0 0 20px hsl(var(--ring) / 0.3);
+  }
+}
+
+@layer components {
+
+  /* Neon Border Utilities - Soft Neutral Theme */
+  .neon-border-teal {
+    border: 1px solid hsl(var(--neon-green));
+    box-shadow: 0 0 10px hsl(var(--neon-green) / 0.3),
+      inset 0 0 10px hsl(var(--neon-green) / 0.1);
+  }
+
+  .neon-border-purple {
+    border: 1px solid hsl(var(--neon-purple));
+    box-shadow: 0 0 10px hsl(var(--neon-purple) / 0.3),
+      inset 0 0 10px hsl(var(--neon-purple) / 0.1);
+  }
+
+  .neon-border-blue {
+    border: 1px solid hsl(var(--neon-blue));
+    box-shadow: 0 0 10px hsl(var(--neon-blue) / 0.3),
+      inset 0 0 10px hsl(var(--neon-blue) / 0.1);
+  }
+
+  .neon-border-coral {
+    border: 1px solid hsl(var(--neon-orange));
+    box-shadow: 0 0 10px hsl(var(--neon-orange) / 0.3),
+      inset 0 0 10px hsl(var(--neon-orange) / 0.1);
+  }
+
+  .neon-border-mint {
+    border: 1px solid hsl(var(--neon-green));
+    box-shadow: 0 0 10px hsl(var(--neon-green) / 0.3),
+      inset 0 0 10px hsl(var(--neon-green) / 0.1);
+  }
+
+  /* Neon Text Glow - Soft Neutral Theme */
+  .neon-text-teal {
+    color: hsl(var(--neon-green));
+    text-shadow: 0 0 10px hsl(var(--neon-green) / 0.5);
+  }
+
+  .neon-text-purple {
+    color: hsl(var(--neon-purple));
+    text-shadow: 0 0 10px hsl(var(--neon-purple) / 0.5);
+  }
+
+  .neon-text-blue {
+    color: hsl(var(--neon-blue));
+    text-shadow: 0 0 10px hsl(var(--neon-blue) / 0.5);
+  }
+
+  .neon-text-coral {
+    color: hsl(var(--neon-orange));
+    text-shadow: 0 0 10px hsl(var(--neon-orange) / 0.5);
+  }
+
+  .neon-text-mint {
+    color: hsl(var(--neon-green));
+    text-shadow: 0 0 10px hsl(var(--neon-green) / 0.5);
+  }
+
+  /* Neon Button Styles - Soft Neutral Theme */
+  .btn-neon {
+    @apply px-6 py-3 rounded-lg font-medium transition-all duration-300;
+    background: linear-gradient(45deg, hsl(var(--neon-green)), hsl(var(--neon-purple)));
+    border: 1px solid hsl(var(--neon-green));
+    color: white;
+    box-shadow: 0 0 20px hsl(var(--neon-green) / 0.3);
+  }
+
+  .btn-neon:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 30px hsl(var(--neon-green) / 0.5),
+      0 5px 25px hsl(var(--neon-green) / 0.2);
+  }
+
+  .btn-neon-outline {
+    @apply px-6 py-3 rounded-lg font-medium transition-all duration-300;
+    background: transparent;
+    border: 2px solid hsl(var(--neon-blue));
+    color: hsl(var(--neon-blue));
+    box-shadow: 0 0 15px hsl(var(--neon-blue) / 0.2);
+  }
+
+  .btn-neon-outline:hover {
+    background: hsl(var(--neon-blue) / 0.1);
+    box-shadow: 0 0 25px hsl(var(--neon-blue) / 0.4);
+    transform: translateY(-1px);
+  }
+
+  /* Card with Neon Glow - Soft Neutral Theme */
+  .card-neon {
+    @apply bg-card border rounded-xl p-6;
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 4px 20px hsl(var(--foreground) / 0.05),
+      0 0 0 1px hsl(var(--neon-green) / 0.1);
+    backdrop-filter: blur(10px);
+  }
+
+  .card-neon:hover {
+    box-shadow: 0 8px 30px hsl(var(--foreground) / 0.1),
+      0 0 20px hsl(var(--neon-green) / 0.2);
+    transform: translateY(-2px);
+  }
+
+  /* Soft Neutral Gradient Backgrounds */
+  .bg-retro-gradient-1 {
+    background: linear-gradient(135deg,
+        hsl(var(--neon-green)) 0%,
+        hsl(var(--neon-purple)) 50%,
+        hsl(var(--neon-orange)) 100%);
+  }
+
+  .bg-retro-gradient-2 {
+    background: linear-gradient(135deg,
+        hsl(var(--neon-blue)) 0%,
+        hsl(var(--neon-green)) 50%,
+        hsl(var(--neon-purple)) 100%);
+  }
+
+  .bg-retro-gradient-3 {
+    background: linear-gradient(135deg,
+        hsl(var(--neon-green)) 0%,
+        hsl(var(--neon-blue)) 100%);
+  }
+
+  /* Animated Neon Border - Soft Neutral Theme */
+  .neon-border-animated {
+    position: relative;
+    border: 2px solid transparent;
+    background: linear-gradient(hsl(var(--background)), hsl(var(--background))) padding-box,
+      linear-gradient(45deg, hsl(var(--neon-green)), hsl(var(--neon-purple)), hsl(var(--neon-blue))) border-box;
+  }
+
+  .neon-border-animated::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 2px;
+    background: linear-gradient(45deg, hsl(var(--neon-green)), hsl(var(--neon-purple)), hsl(var(--neon-blue)));
+    border-radius: inherit;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: xor;
+    animation: neon-rotate 3s linear infinite;
+  }
+
+  @keyframes neon-rotate {
+    0% {
+      background: linear-gradient(45deg, hsl(var(--neon-green)), hsl(var(--neon-purple)), hsl(var(--neon-blue)));
+    }
+
+    33% {
+      background: linear-gradient(45deg, hsl(var(--neon-purple)), hsl(var(--neon-blue)), hsl(var(--neon-green)));
+    }
+
+    66% {
+      background: linear-gradient(45deg, hsl(var(--neon-blue)), hsl(var(--neon-green)), hsl(var(--neon-purple)));
+    }
+
+    100% {
+      background: linear-gradient(45deg, hsl(var(--neon-green)), hsl(var(--neon-purple)), hsl(var(--neon-blue)));
+    }
   }
 }

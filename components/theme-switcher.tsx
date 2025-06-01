@@ -1,13 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button"; // Tetap gunakan Button untuk styling
 import { Laptop, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
@@ -27,51 +20,40 @@ const ThemeSwitcher = () => {
 
   const ICON_SIZE = 16;
 
+  const toggleTheme = () => {
+    // Jika tema saat ini 'light' atau 'system' (dianggap light), ganti ke 'dark'.
+    // Jika 'dark', ganti ke 'light'.
+    setTheme(theme === "light" || theme === "system" ? "dark" : "light");
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size={"sm"}>
-          {theme === "light" ? (
-            <Sun
-              key="light"
-              size={ICON_SIZE}
-              className={"text-muted-foreground"}
-            />
-          ) : theme === "dark" ? (
-            <Moon
-              key="dark"
-              size={ICON_SIZE}
-              className={"text-muted-foreground"}
-            />
-          ) : (
-            <Laptop
-              key="system"
-              size={ICON_SIZE}
-              className={"text-muted-foreground"}
-            />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-content" align="start">
-        <DropdownMenuRadioGroup
-          value={theme}
-          onValueChange={(e) => setTheme(e)}
-        >
-          <DropdownMenuRadioItem className="flex gap-2" value="light">
-            <Sun size={ICON_SIZE} className="text-muted-foreground" />{" "}
-            <span>Light</span>
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem className="flex gap-2" value="dark">
-            <Moon size={ICON_SIZE} className="text-muted-foreground" />{" "}
-            <span>Dark</span>
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem className="flex gap-2" value="system">
-            <Laptop size={ICON_SIZE} className="text-muted-foreground" />{" "}
-            <span>System</span>
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      onClick={toggleTheme}
+      aria-label="Toggle theme"
+      className={`
+        relative inline-flex items-center h-7 w-14 cursor-pointer rounded-full 
+        transition-colors duration-300 ease-in-out
+        focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2
+        ${theme === "light" || theme === "system" ? "bg-yellow-400" : "bg-slate-700"}
+      `}
+    >
+      <span className="sr-only">Toggle theme</span>
+      {/* Knop Switch */}
+      <span
+        className={`
+          absolute inline-flex items-center justify-center h-5 w-5 transform rounded-full 
+          bg-card shadow-md transition-transform duration-300 ease-in-out
+          ${theme === "light" || theme === "system" ? "translate-x-1" : "translate-x-8"}
+        `}
+      >
+        {/* Ikon di dalam knop */}
+        {(theme === "light" || theme === "system") ? (
+          <Sun size={ICON_SIZE - 2} className="text-yellow-600" />
+        ) : (
+          <Moon size={ICON_SIZE - 2} className="text-slate-300" />
+        )}
+      </span>
+    </button>
   );
 };
 
