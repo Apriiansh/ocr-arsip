@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react"; // Added Suspense
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
@@ -31,7 +31,8 @@ interface DaftarBidang {
   nama_bidang: string;
 }
 
-export default function SignUp() {
+// Component to contain the main logic and UI, allowing useSearchParams
+function SignUpForm() {
   const supabase = createClient();
   const [nama, setNama] = useState("");
   const [email, setEmail] = useState("");
@@ -107,9 +108,9 @@ export default function SignUp() {
   }, [supabase]);
 
   return (
-    <>
-      <div className="w-full h-full flex flex-col items-center justify-center p-4 md:p-8"> 
-        <div className="card-neon w-full max-w-3xl p-6 md:p-10"> 
+    <div className="w-full h-full flex flex-col items-center justify-center p-4 md:p-8">
+      <div className="card-neon w-full max-w-3xl p-6 md:p-10">
+        <form onSubmit={handleSignUp} className="space-y-6"> {/* Moved form tag to wrap everything */}
           <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-6 text-center">
             Sign Up
           </h2>
@@ -135,7 +136,7 @@ export default function SignUp() {
             </div>
           )}
           {/* Card Email & Password */}
-          <div className="bg-muted/50 dark:bg-muted/20 rounded-lg p-6 mb-6 shadow-sm border border-border/50"> {/* Adjusted inner card style */}
+          <div className="bg-muted/50 dark:bg-muted/20 rounded-lg p-6 shadow-sm border border-border/50"> {/* Adjusted inner card style */}
             {/* Email */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-foreground mb-2">
@@ -175,7 +176,7 @@ export default function SignUp() {
             </div>
           </div>
           {/* NIP full width, di luar card */}
-          <div className="mb-6">
+          <div>
             <label className="block text-sm font-medium text-foreground mb-2">
               NIP
             </label>
@@ -188,8 +189,7 @@ export default function SignUp() {
             />
           </div>
           {/* Form Data Lainnya */}
-          <form onSubmit={handleSignUp} className="flex flex-col md:flex-row gap-6">
-            {/* Kiri */}
+          <div className="flex flex-col md:flex-row gap-6"> {/* Changed form to div as it's now nested */}
             <div className="flex-1 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
@@ -216,7 +216,6 @@ export default function SignUp() {
                 />
               </div>
             </div>
-            {/* Kanan */}
             <div className="flex-1 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
@@ -255,11 +254,10 @@ export default function SignUp() {
                 </select>
               </div>
             </div>
-          </form>
+          </div>
           <button
             type="submit"
-            className="mt-8 w-full btn-neon" // Menggunakan kelas .btn-neon
-            onClick={handleSignUp}
+            className="w-full btn-neon" // onClick removed, type="submit" handles form submission
           >
             Sign Up
           </button>
@@ -271,8 +269,26 @@ export default function SignUp() {
               Masuk di sini
             </Link>
           </p>
-        </div>
+        </form>
       </div>
-    </>
+    </div>
+  );
+}
+
+// Fallback component for Suspense
+function SignUpLoadingFallback() {
+  return (
+    <div className="flex justify-center items-center min-h-screen w-full">
+      <p className="text-lg text-foreground">Memuat halaman pendaftaran...</p>
+    </div>
+  );
+}
+
+// Default export page component wraps SignUpForm with Suspense
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={<SignUpLoadingFallback />}>
+      <SignUpForm />
+    </Suspense>
   );
 }

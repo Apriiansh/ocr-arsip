@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useArsipAktifForm } from "./useArsipAktifForm";
 import ArsipAktifFormUI from "./components/ArsipAktifFormUI";
 
@@ -142,14 +143,22 @@ const FormLoadingSkeleton = () => {
   );
 };
 
-export default function FormArsipAktif() {
+// Komponen ini akan memanggil hook yang menggunakan useSearchParams
+// dan akan dirender di dalam Suspense
+function ArsipAktifContent() {
   const formLogic = useArsipAktifForm();
 
   if (formLogic.ocrLoading) {
     return <FormLoadingSkeleton />;
   }
 
+  return <ArsipAktifFormUI {...formLogic} />;
+}
+
+export default function FormArsipAktifPage() {
   return (
-    <ArsipAktifFormUI {...formLogic} />
+    <Suspense fallback={<FormLoadingSkeleton />}>
+      <ArsipAktifContent />
+    </Suspense>
   );
 }

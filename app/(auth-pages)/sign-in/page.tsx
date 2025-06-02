@@ -11,17 +11,21 @@ export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false); 
   const router = useRouter();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+
+    setIsLoading(false);
 
     if (signInError) {
       setError(signInError.message);
@@ -78,8 +82,9 @@ export default function SignIn() {
         <button
           type="submit"
           className="w-full btn-neon" // Menggunakan kelas .btn-neon
+          disabled={isLoading}
         >
-          Sign In
+          {isLoading ? "Signing In..." : "Sign In"}
         </button>
       </form>
       <p className="mt-6 md:mt-8 text-center text-sm text-muted-foreground"> {/* Adjusted margin top */}
