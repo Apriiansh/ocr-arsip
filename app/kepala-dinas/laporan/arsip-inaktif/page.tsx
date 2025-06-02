@@ -77,9 +77,9 @@ export default function LaporanArsipInaktifKepalaDinas() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalArsipInaktifDisetujui, setTotalArsipInaktifDisetujui] = useState(0);
-  const [sortColumn, setSortColumn] = useState<string>('tanggal_pindah'); // Default sort
+  const [sortColumn, setSortColumn] = useState<string>('nomor_berkas'); // Default sort by nomor_berkas
   const [isExporting, setIsExporting] = useState(false);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc'); // Default sort direction
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc'); // Default sort direction ascending for nomor_berkas
   const itemsPerPage = 10;
 
   const ALLOWED_ROLE = "Kepala_Dinas";

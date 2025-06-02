@@ -2,29 +2,117 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link"; // Pastikan Link diimpor jika belum
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { FaRegFileAlt, FaRegCalendarAlt, FaRegCopy } from "react-icons/fa";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { toast } from "react-toastify"; // Import react-toastify
+import { Bell, ArrowRight, X as LucideX, Eye } from "lucide-react"; // Import ikon
+import { differenceInDays } from "date-fns"; // Import differenceInDays
 import { createClient } from "@/utils/supabase/client";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 
 export default function UserHome() {
     const supabase = createClient();
     const router = useRouter();
-    const currentPathname = usePathname();
     const [loading, setLoading] = useState(true);
     const [totalArsip, setTotalArsip] = useState(0);
     const [arsipBulanIni, setArsipBulanIni] = useState(0);
     const [arsipPerBulanData, setArsipPerBulanData] = useState<any[]>([]);
     const [arsipDipindahkanCount, setArsipDipindahkanCount] = useState(0); // State baru
-    const [arsipTerbaruPengguna, setArsipTerbaruPengguna] = useState<any[]>([]);
-    const [arsipMendekatiRetensiList, setArsipMendekatiRetensiList] = useState<any[]>([]);
+    const [arsipTerbaruPengguna, setArsipTerbaruPengguna] = useState<ArsipAktifRingkas[]>([]);
+    const [arsipJatuhTempoTerdekatList, setArsipJatuhTempoTerdekatList] = useState<ArsipJatuhTempo[]>([]);
 
     // Constants
     const SIGN_IN_PATH = "/sign-in";
     const DETAIL_ARSIP_PATH_PREFIX = "/arsip/arsip-aktif/detail/";
-    const ARSIP_RETENSI_PATH = "/arsip/retensi";
-    const N_HARI_RETENSI = 30;
+    const ARSIP_RETENSI_PATH = "/arsip/retensi"; // Tetap bisa digunakan jika halaman retensi menampilkan semua yang jatuh tempo
+    const TOAST_RETENTION_AUTOCLOSE_DURATION = 15000; // 15 detik
+    const TOAST_COMMON_CLASSNAME = "!bg-card dark:!bg-card !border !border-border !shadow-xl !rounded-xl w-[340px] max-w-[90vw] [&>.Toastify__toast-body]:!p-0 [&>.Toastify__toast-body]:!m-0 [&>.Toastify__close-button]:!hidden";
+
+
+    // Interface untuk data arsip yang lebih ringkas
+    interface ArsipAktifRingkas {
+        id_arsip_aktif: string;
+        kode_klasifikasi: string;
+        uraian_informasi: string;
+        created_at: string;
+    }
+
+    interface ArsipJatuhTempo extends ArsipAktifRingkas {
+        jangka_simpan: string | null;
+        selisih_hari?: number; // Bisa positif (sisa hari) atau negatif (sudah lewat)
+    }
+
+    // Komponen untuk konten toast notifikasi retensi
+    const RetentionToastContent = ({
+        arsip,
+        onView,
+        onDismiss,
+    }: {
+        arsip: ArsipJatuhTempo;
+        onView: () => void;
+        onDismiss: () => void;
+    }) => {
+        let message = "";
+        let titleColor = "text-orange-500";
+        if (typeof arsip.selisih_hari === 'number') {
+            if (arsip.selisih_hari < 0) {
+                message = `Arsip "${arsip.kode_klasifikasi} - ${arsip.uraian_informasi}" telah LEWAT jatuh tempo ${Math.abs(arsip.selisih_hari)} hari.`;
+                titleColor = "text-red-500";
+            } else if (arsip.selisih_hari === 0) {
+                message = `Arsip "${arsip.kode_klasifikasi} - ${arsip.uraian_informasi}" jatuh tempo HARI INI.`;
+            } else {
+                message = `Arsip "${arsip.kode_klasifikasi} - ${arsip.uraian_informasi}" akan jatuh tempo dalam ${arsip.selisih_hari} hari.`;
+            }
+        } else {
+            message = `Arsip "${arsip.kode_klasifikasi} - ${arsip.uraian_informasi}" memiliki tanggal jatuh tempo yang perlu diperiksa.`;
+        }
+
+        return (
+            <div className="relative overflow-hidden">
+                <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${arsip.selisih_hari !== undefined && arsip.selisih_hari < 0 ? 'bg-red-500' : 'bg-orange-500'}`} />
+                <div className="flex items-start gap-3 p-3 pl-5">
+                    <div className="flex-shrink-0 mt-0.5">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${arsip.selisih_hari !== undefined && arsip.selisih_hari < 0 ? 'bg-red-500/15' : 'bg-orange-500/15'}`}>
+                            <Bell size={14} className={titleColor} />
+                        </div>
+                    </div>
+                    <div className="flex-grow min-w-0 pr-2">
+                        <p className={`text-sm font-semibold ${titleColor} mb-1`}>
+                            {arsip.selisih_hari !== undefined && arsip.selisih_hari < 0 ? "Arsip Lewat Jatuh Tempo!" : "Arsip Mendekati Jatuh Tempo"}
+                        </p>
+                        <p className="text-xs text-foreground leading-snug mb-3 break-words">
+                            {message}
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                                onClick={onView}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md text-xs font-medium transition-all duration-200 hover:scale-105 group"
+                            >
+                                <Eye size={10} />
+                                <span>Lihat Detail</span>
+                                <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform duration-200" />
+                            </button>
+                             <button
+                                onClick={onDismiss}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 hover:scale-105 bg-muted hover:bg-muted/80 text-muted-foreground"
+                            >
+                                <LucideX size={10} />
+                                <span>Tutup</span>
+                            </button>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onDismiss}
+                        className="absolute top-2 right-2 flex-shrink-0 p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted/50 transition-colors duration-200"
+                        aria-label="Tutup notifikasi"
+                    >
+                        <LucideX size={12} />
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     // Helper function untuk mendapatkan id_bidang user
     const getUserBidang = async () => {
@@ -171,28 +259,82 @@ export default function UserHome() {
         setArsipTerbaruPengguna(terbaruPengguna || []);
     };
 
-    const fetchArsipMendekatiRetensi = async (userBidangId: number) => {
-        let queryRetensi = supabase
+    const fetchArsipJatuhTempoTerdekat = async (userBidangId: number) => {
+        const { data: pemindahanLinks, error: pemindahanError } = await supabase
+            .from("pemindahan_arsip_link")
+            .select("id_arsip_aktif_fkey");
+
+            if (pemindahanError) {
+                console.log("Error fetching pemindahan links:", pemindahanError);
+            }
+
+            const idsToExclude = pemindahanLinks?.map(link => link.id_arsip_aktif_fkey).filter(id => id != null) || [];
+
+        
+        const { data: semuaArsipAktif, error } = await supabase
             .from("arsip_aktif")
             .select(`
                 id_arsip_aktif,
                 kode_klasifikasi,
+                uraian_informasi,
+                created_at,
+                jangka_simpan,
                 lokasi_penyimpanan!inner(id_bidang_fkey)
             `)
             .eq('lokasi_penyimpanan.id_bidang_fkey', userBidangId)
-            .eq("kode_klasifikasi", "000.5.2.1")
-            .limit(1);
+            .not('id_arsip_aktif', 'in', `(${idsToExclude.join(',')})`);
 
-        // Menghapus filter idsToExclude untuk arsip mendekati retensi
-        // if (idsToExclude.length > 0) {
-        //     queryRetensi = queryRetensi.not('id_arsip_aktif', 'in', `(${idsToExclude.join(',')})`);
-        // }
-        const { data: daftarDekatRetensi, error } = await queryRetensi;
 
         if (error) {
-            console.error("Error fetching arsip mendekati retensi:", error.message || "Unknown error");
+            console.error("Error fetching arsip untuk jatuh tempo:", error.message);
+            setArsipJatuhTempoTerdekatList([]);
+            return;
         }
-        setArsipMendekatiRetensiList(daftarDekatRetensi || []);
+
+        if (!semuaArsipAktif) {
+            setArsipJatuhTempoTerdekatList([]);
+            return;
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const arsipDenganSelisihHari: ArsipJatuhTempo[] = semuaArsipAktif.map(arsip => {
+            let selisihHari: number | undefined = undefined;
+            if (arsip.jangka_simpan) {
+                const parts = arsip.jangka_simpan.split(" s.d. ");
+                const endDateStringDMY = parts.length > 1 ? parts[1] : parts[0];
+
+                if (endDateStringDMY) {
+                    const dateParts = endDateStringDMY.split("-");
+                    if (dateParts.length === 3) {
+                        const day = parseInt(dateParts[0], 10);
+                        const month = parseInt(dateParts[1], 10) - 1;
+                        const year = parseInt(dateParts[2], 10);
+
+                        if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                            const endDate = new Date(year, month, day);
+                            endDate.setHours(23, 59, 59, 999);
+
+                            if (!isNaN(endDate.getTime())) {
+                                selisihHari = differenceInDays(endDate, today);
+                            }
+                        }
+                    }
+                }
+            }
+            return {
+                ...arsip,
+                selisih_hari: selisihHari,
+            };
+        }).filter(arsip => typeof arsip.selisih_hari === 'number'); // Hanya yang punya selisih hari valid
+
+        // Urutkan: yang sudah lewat (selisih negatif terbesar), lalu yang paling dekat (selisih positif terkecil)
+        arsipDenganSelisihHari.sort((a, b) => {
+            return (a.selisih_hari as number) - (b.selisih_hari as number);
+        });
+
+        setArsipJatuhTempoTerdekatList(arsipDenganSelisihHari.slice(0, 3)); // Ambil 3 teratas
     };
 
     useEffect(() => {
@@ -220,7 +362,7 @@ export default function UserHome() {
                     fetchDashboardStats(userBidangId),
                     fetchArsipPerBulanChartData(userBidangId),
                     fetchArsipTerbaruPengguna(userBidangId),
-                    fetchArsipMendekatiRetensi(userBidangId),
+                    fetchArsipJatuhTempoTerdekat(userBidangId), // Panggil fungsi baru
                 ]);
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
@@ -229,8 +371,50 @@ export default function UserHome() {
             }
         };
 
-        checkAuthAndFetchData();
-    }, [supabase, router, currentPathname]);
+        checkAuthAndFetchData(); // currentPathname dihapus karena tidak digunakan
+    }, [supabase, router]); // Hapus currentPathname dari dependencies
+
+    // useEffect untuk menampilkan toast notifikasi retensi
+    useEffect(() => {
+        if (arsipJatuhTempoTerdekatList.length > 0) {
+            arsipJatuhTempoTerdekatList.forEach(arsip => {
+                if (typeof arsip.selisih_hari === 'number' && arsip.selisih_hari <= 30) {
+                    const toastId = `retention-alert-${arsip.id_arsip_aktif}`;
+                    if (!toast.isActive(toastId)) {
+                        const handleView = () => {
+                            router.push(`${DETAIL_ARSIP_PATH_PREFIX}${arsip.id_arsip_aktif}`);
+                            toast.dismiss(toastId);
+                        };
+                        const handleDismiss = () => {
+                            toast.dismiss(toastId);
+                        };
+
+                        const toastType = arsip.selisih_hari < 0 ? toast.error : toast.warn;
+
+                        toastType(
+                            <RetentionToastContent
+                                arsip={arsip}
+                                onView={handleView}
+                                onDismiss={handleDismiss}
+                            />,
+                            {
+                                toastId: toastId,
+                                position: "top-right",
+                                autoClose: TOAST_RETENTION_AUTOCLOSE_DURATION,
+                                hideProgressBar: true,
+                                closeOnClick: false,
+                                pauseOnHover: true,
+                                draggable: true,
+                                closeButton: false, // Custom close button handled in RetentionToastContent
+                                theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+                                className: TOAST_COMMON_CLASSNAME,
+                            }
+                        );
+                    }
+                }
+            });
+        }
+    }, [arsipJatuhTempoTerdekatList, router]);
 
     if (loading) {
         // Konsisten dengan wrapper loading di halaman Kepala Bidang
@@ -337,21 +521,37 @@ export default function UserHome() {
                             </div>
 
                             {/* Retention Warning Card - Disesuaikan rounded-xl */}
-                            <div className="card-neon p-6 rounded-xl">
-                                <h4 className="text-lg font-semibold text-foreground mb-4">Arsip yang Mendekati Masa Retensi (1 bulan)</h4>
-                                {arsipMendekatiRetensiList.length > 0 ? (
-                                    <div className="p-4 bg-muted/10 rounded-lg border border-border">
-                                        <p className="text-sm text-foreground">
-                                            Terdapat beberapa Arsip Aktif yang harus di pindahkan ke Arsip Inaktif
-                                        </p>
-                                        <div className="flex justify-end mt-2">
-                                            <Link href={ARSIP_RETENSI_PATH} className="text-xs text-primary hover:underline">
-                                                detail
-                                            </Link>
-                                        </div>
+                            <div className="card-neon p-6 rounded-xl"> {/* Jatuh Tempo Terdekat */}
+                                <h4 className="text-lg font-semibold text-foreground mb-4">Arsip Jatuh Tempo Terdekat</h4>
+                                {arsipJatuhTempoTerdekatList.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {arsipJatuhTempoTerdekatList.map(arsip => (
+                                            <div key={arsip.id_arsip_aktif} className="p-4 bg-muted/10 rounded-lg border border-border">
+                                                <div className="flex justify-between items-center">
+                                                    <p className="text-sm font-medium text-foreground truncate" title={arsip.uraian_informasi}>
+                                                        {arsip.kode_klasifikasi} - {arsip.uraian_informasi}
+                                                    </p>
+                                                    <Link href={`${DETAIL_ARSIP_PATH_PREFIX}${arsip.id_arsip_aktif}`} className="text-xs text-primary hover:underline ml-2 flex-shrink-0">
+                                                        detail
+                                                    </Link>
+                                                </div>
+                                                <p className={`text-xs mt-1 ${typeof arsip.selisih_hari === 'number' && arsip.selisih_hari < 0 ? 'text-red-500' : 'text-orange-500'}`}>
+                                                    {typeof arsip.selisih_hari === 'number' ?
+                                                        (arsip.selisih_hari < 0 ? `Lewat ${Math.abs(arsip.selisih_hari)} hari` : `${arsip.selisih_hari} hari lagi`)
+                                                        : 'Tanggal tidak valid'}
+                                                </p>
+                                            </div>
+                                        ))}
+                                        {arsipJatuhTempoTerdekatList.length > 0 && (
+                                            <div className="flex justify-end mt-3">
+                                                <Link href={ARSIP_RETENSI_PATH} className="text-xs text-primary hover:underline">
+                                                    Lihat Semua Jatuh Tempo
+                                                </Link>
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
-                                    <p className="text-muted-foreground text-center py-4">Tidak ada arsip yang mendekati masa retensi.</p>
+                                    <p className="text-muted-foreground text-center py-4">Tidak ada arsip dengan informasi jatuh tempo.</p>
                                 )}
                             </div>
                         </div>

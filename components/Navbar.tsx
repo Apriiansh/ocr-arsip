@@ -403,6 +403,8 @@ export default function Navbar() {
           </>
         );
 
+      // Bagian untuk ROLES.PEGAWAI di renderRoleBasedMenuItems() - Desktop Menu
+      // Perbaikan untuk Desktop Menu - bagian ROLES.PEGAWAI
       case ROLES.PEGAWAI:
       default:
         return (
@@ -410,7 +412,10 @@ export default function Navbar() {
             <div
               className="relative"
               onMouseEnter={() => {
-                if (closeTimeout) clearTimeout(closeTimeout);
+                if (closeTimeout) {
+                  clearTimeout(closeTimeout);
+                  setCloseTimeout(null);
+                }
                 setOpenDropdown('arsip');
               }}
               onMouseLeave={closeDropdownMenuWithDelay}
@@ -424,41 +429,18 @@ export default function Navbar() {
 
               {openDropdown === 'arsip' && (
                 <div className={dropdownClasses.menu}>
-                  {/* Tambah Arsip Submenu */}
-                  <div className="relative"
-                       onMouseEnter={() => openSubmenu('tambah')}
-                       onMouseLeave={closeActiveSubmenuWithDelay}
+                  <Link
+                    href="/arsip/arsip-aktif"
+                    onClick={closeAllMenusAndDropdowns}
+                    className={getDropdownItemClass('/arsip/arsip-aktif')}
                   >
-                    <button className={dropdownClasses.itemWithSubmenu}>
-                      <span>Tambah Arsip</span>
-                      <ChevronRight size={14} />
-                    </button>
-                    {activeSubmenu === 'tambah' && (
-                      <div
-                        className={dropdownClasses.submenu}
-                        onMouseEnter={() => {
-                            if (closeSubmenuTimeoutIdRef.current) {
-                                clearTimeout(closeSubmenuTimeoutIdRef.current);
-                                closeSubmenuTimeoutIdRef.current = null;
-                            }
-                          if (closeTimeout) clearTimeout(closeTimeout);
-                        }}
-                        onMouseLeave={closeActiveSubmenuWithDelay}
-                      >
-                        <Link href="/arsip/arsip-aktif" onClick={closeAllMenusAndDropdowns} className={getDropdownItemClass('/arsip/arsip-aktif')}>
-                          Arsip Aktif
-                        </Link>
-                        <Link href="/arsip/arsip-inaktif" onClick={closeAllMenusAndDropdowns} className={getDropdownItemClass('/arsip/arsip-inaktif')}>
-                          Arsip Inaktif
-                        </Link>
-                      </div>
-                    )}
-                  </div>
+                    Tambah Arsip
+                  </Link>
 
-                  {/* Daftar Arsip Submenu */}
+                  {/* Daftar Arsip Submenu - tetap ada */}
                   <div className="relative"
-                       onMouseEnter={() => openSubmenu('daftar')}
-                       onMouseLeave={closeActiveSubmenuWithDelay}
+                    onMouseEnter={() => openSubmenu('daftar')}
+                    onMouseLeave={closeActiveSubmenuWithDelay}
                   >
                     <button className={dropdownClasses.itemWithSubmenu}>
                       <span>Daftar Arsip</span>
@@ -468,11 +450,14 @@ export default function Navbar() {
                       <div
                         className={dropdownClasses.submenu}
                         onMouseEnter={() => {
-                            if (closeSubmenuTimeoutIdRef.current) {
-                                clearTimeout(closeSubmenuTimeoutIdRef.current);
-                                closeSubmenuTimeoutIdRef.current = null;
-                            }
-                          if (closeTimeout) clearTimeout(closeTimeout);
+                          if (closeSubmenuTimeoutIdRef.current) {
+                            clearTimeout(closeSubmenuTimeoutIdRef.current);
+                            closeSubmenuTimeoutIdRef.current = null;
+                          }
+                          if (closeTimeout) {
+                            clearTimeout(closeTimeout);
+                            setCloseTimeout(null);
+                          }
                         }}
                         onMouseLeave={closeActiveSubmenuWithDelay}
                       >
@@ -486,7 +471,10 @@ export default function Navbar() {
                     )}
                   </div>
 
-                  {/* Daftar Arsip Submenu */}
+                  <Link href="/arsip/retensi" onClick={closeAllMenusAndDropdowns} className={getDropdownItemClass('/arsip/retensi')}>
+                    Retensi Arsip
+                  </Link>
+
                 </div>
               )}
             </div>
@@ -498,14 +486,20 @@ export default function Navbar() {
 
             <div
               className="relative"
-              onMouseEnter={() => openDropdownMenu('pemindahan')}
+              onMouseEnter={() => {
+                if (closeTimeout) {
+                  clearTimeout(closeTimeout);
+                  setCloseTimeout(null);
+                }
+                setOpenDropdown('pemindahan');
+              }}
               onMouseLeave={closeDropdownMenuWithDelay}
               ref={(el) => { dropdownRefs.current['pemindahan'] = el; }}
             >
               <button className={getDropdownButtonClass('pemindahan')}>
                 <FileText size={ICON_SIZE} />
                 <span>Pemindahan Arsip</span>
-                <ChevronDown size={16} className="ml-1" />
+                <ChevronDown size={16} className={`ml-1 transition-transform ${openDropdown === 'pemindahan' ? 'rotate-180' : ''}`} />
               </button>
 
               {openDropdown === 'pemindahan' && (
@@ -529,6 +523,7 @@ export default function Navbar() {
             </div>
           </>
         );
+
     }
   };
 
@@ -672,22 +667,16 @@ export default function Navbar() {
             </button>
             {openDropdown === 'arsip' && (
               <div className="pl-6 space-y-1">
-                {/* Tambah Arsip Mobile Submenu */}
-                <button
-                  onClick={() => setMobileSubmenuOpen(prev => prev === 'tambah' ? null : 'tambah')}
-                  className={`${mobileClasses.item} ${mobileSubmenuOpen === 'tambah' ? mobileClasses.active : mobileClasses.inactive} justify-between w-full`}
+                {/* Tambah Arsip - langsung ke link tanpa submenu */}
+                <Link
+                  href="/arsip/arsip-aktif"
+                  onClick={closeAllMenusAndDropdowns}
+                  className={getMobileItemClass('/arsip/arsip-aktif')}
                 >
-                  <span>Tambah Arsip</span>
-                  <ChevronDown size={16} className={`transition-transform ${mobileSubmenuOpen === 'tambah' ? 'rotate-180' : ''}`} />
-                </button>
-                {mobileSubmenuOpen === 'tambah' && (
-                  <div className="pl-6 space-y-1">
-                    <Link href="/arsip/arsip-aktif" onClick={closeAllMenusAndDropdowns} className={getMobileItemClass('/arsip/arsip-aktif')}>Arsip Aktif</Link>
-                    <Link href="/arsip/arsip-inaktif" onClick={closeAllMenusAndDropdowns} className={getMobileItemClass('/arsip/arsip-inaktif')}>Arsip Inaktif</Link>
-                  </div>
-                )}
+                  Tambah Arsip
+                </Link>
 
-                {/* Daftar Arsip Mobile Submenu */}
+                {/* Daftar Arsip Mobile Submenu - tetap ada */}
                 <button
                   onClick={() => setMobileSubmenuOpen(prev => prev === 'daftar' ? null : 'daftar')}
                   className={`${mobileClasses.item} ${mobileSubmenuOpen === 'daftar' ? mobileClasses.active : mobileClasses.inactive} justify-between w-full`}
@@ -701,6 +690,15 @@ export default function Navbar() {
                     <Link href="/arsip/arsip-inaktif/daftar-inaktif" onClick={closeAllMenusAndDropdowns} className={getMobileItemClass('/arsip/arsip-inaktif/daftar-inaktif')}>Arsip Inaktif</Link>
                   </div>
                 )}
+
+                {/* Retensi Arsip */}
+                <Link
+                  href="/arsip/retensi"
+                  onClick={closeAllMenusAndDropdowns}
+                  className={getMobileItemClass('/arsip/retensi')}
+                >
+                  Retensi Arsip
+                </Link>
               </div>
             )}
 
@@ -745,7 +743,7 @@ export default function Navbar() {
 
             {commonMobileItems}
           </>
-        );
+    );
     }
   };
 

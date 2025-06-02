@@ -399,3 +399,66 @@ export async function notifyAboutNewTask(
     "task",
   );
 }
+
+// // Fungsi baru untuk mengirim notifikasi terkait retensi arsip
+// export async function sendArchiveRetentionAlert(
+//   userId: string,
+//   archiveInfo: {
+//     id: string; // id_arsip_aktif
+//     kodeKlasifikasi: string;
+//     uraianInformasi: string;
+//   },
+//   selisihHari: number, // Positif: hari tersisa; Negatif: hari terlewat; 0: jatuh tempo hari ini
+//   baseDetailPath: string = "/arsip/arsip-aktif/detail/" // Path dasar untuk link detail
+// ): Promise<boolean> {
+//   let title = "";
+//   let message = "";
+//   const linkToArchive = `${baseDetailPath}${archiveInfo.id}`;
+//   const relatedEntityConst = "arsip_retensi_alert";
+
+//   if (selisihHari < 0) {
+//     title = "Peringatan: Arsip Telah Jatuh Tempo";
+//     message = `Arsip "${archiveInfo.kodeKlasifikasi} - ${archiveInfo.uraianInformasi}" telah melewati tanggal jatuh tempo ${Math.abs(selisihHari)} hari yang lalu. Segera tindak lanjuti.`;
+//   } else if (selisihHari === 0) {
+//     title = "Peringatan: Arsip Jatuh Tempo Hari Ini";
+//     message = `Arsip "${archiveInfo.kodeKlasifikasi} - ${archiveInfo.uraianInformasi}" jatuh tempo hari ini. Segera tindak lanjuti.`;
+//   } else { // selisihHari > 0 && selisihHari <= 30 (diasumsikan pemanggil sudah memfilter ini)
+//     title = "Pemberitahuan: Arsip Mendekati Jatuh Tempo";
+//     message = `Arsip "${archiveInfo.kodeKlasifikasi} - ${archiveInfo.uraianInformasi}" akan jatuh tempo dalam ${selisihHari} hari. Mohon persiapkan tindak lanjut.`;
+//   }
+
+//   try {
+//     // Opsional: Cek apakah notifikasi serupa yang belum dibaca sudah ada untuk menghindari duplikasi berlebih
+//     const { data: existingUnread, error: checkError } = await supabase
+//       .from("notifications")
+//       .select("id_notif")
+//       .eq("user_id", userId)
+//       .eq("link", linkToArchive) // Cek berdasarkan link ke arsip yang sama
+//       .eq("related_entity", relatedEntityConst)
+//       .eq("is_read", false)
+//       // Anda bisa menambahkan filter berdasarkan `title` atau `message` jika ingin lebih spesifik
+//       // Namun, ini bisa jadi terlalu ketat. Cukup dengan link dan related_entity mungkin sudah cukup.
+//       .limit(1);
+
+//     if (checkError) {
+//       console.error("Error checking existing unread retention notifications:", checkError.message);
+//       // Lanjutkan pengiriman meskipun pengecekan gagal
+//     }
+
+//     if (existingUnread && existingUnread.length > 0) {
+//       console.log(`Notifikasi retensi yang belum dibaca untuk arsip ${archiveInfo.id} sudah ada untuk pengguna ${userId}. Pengiriman dilewati.`);
+//       return true; // Anggap berhasil karena notifikasi sudah ada
+//     }
+
+//     return await sendUserNotification(
+//       userId,
+//       title,
+//       message,
+//       linkToArchive,
+//       relatedEntityConst // Gunakan related_entity yang spesifik
+//     );
+//   } catch (error: any) {
+//     console.error(`Error in sendArchiveRetentionAlert for archive ${archiveInfo.id}:`, error.message || error);
+//     return false;
+//   }
+// }
