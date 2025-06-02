@@ -3,8 +3,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "test": "jest"
+    "start": "next start"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.1.1",
@@ -43,16 +42,10 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "@types/jest": "^29.5.14",
     "@types/node": "22.10.2",
     "@types/pdfjs-dist": "^2.10.377",
     "@types/react": "^19.0.2",
     "@types/react-dom": "19.0.2",
-    "identity-obj-proxy": "^3.0.0",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
     "postcss": "8.4.49",
     "supabase": "^2.22.6",
     "tailwind-merge": "^2.5.2",
