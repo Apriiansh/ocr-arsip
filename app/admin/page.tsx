@@ -27,15 +27,15 @@ export default function AdminHome() {
         setError(null);
         try {
             
-            const { count: activeEmployees } = await supabase
+            const { count: activeEmployees, error: activeEmployeesError } = await supabase
                 .from("users")
-                .select("*", { count: "exact", head: true })
+                .select("user_id", { count: "exact", head: true }) // Cukup pilih satu kolom (misal PK) atau biarkan kosong
                 .eq("status", "active");
 
             // Fetch employee data
-            const { count: totalEmployees } = await supabase
+            const { count: totalEmployees, error: totalEmployeesError } = await supabase
                 .from("users")
-                .select("*", { count: "exact", head: true })
+                .select("user_id", { count: "exact", head: true })
                 .eq("role", "Pegawai");
 
             // Fetch head of department data
@@ -49,6 +49,10 @@ export default function AdminHome() {
                 .from("users")
                 .select("*", { count: "exact", head: true })
                 .eq("role", "Sekretaris");
+            
+            if (activeEmployeesError) console.error("Error fetching active employees count:", activeEmployeesError);
+            if (totalEmployeesError) console.error("Error fetching total employees count:", totalEmployeesError);
+            // Tambahkan penanganan error serupa untuk query count lainnya jika diperlukan
 
             setEmployeeStats({ total: totalEmployees || 0, active: activeEmployees || 0 });
             setHeadOfDepartmentStats({ total: totalHeads || 0 });

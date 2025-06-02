@@ -55,6 +55,7 @@ export const updateSession = async (request: NextRequest) => {
       "/user",
       "/admin",       
       "/kepala-dinas",
+      "/settings",
     ];
 
     const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));

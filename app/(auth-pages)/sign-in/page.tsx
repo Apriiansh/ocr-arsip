@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react"; 
-import { createClient } from "@/utils/supabase/client"; // <-- Ubah import
+import { createClient } from "@/utils/supabase/client";
 
 export default function SignIn() {
   const supabase = createClient(); // <-- Buat instance Supabase
@@ -30,6 +30,7 @@ export default function SignIn() {
     if (signInError) {
       setError(signInError.message);
     } else {
+      router.refresh(); // Tambahkan ini untuk memastikan server components mengambil sesi baru
       router.push("/");
     }
   };

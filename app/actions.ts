@@ -135,7 +135,36 @@ export const signInAction = async (formData: FormData) => {
     return encodedRedirect("error", "/sign-in", error.message);
   }
 
-  return redirect("/protected");
+  // PERBAIKAN: Ambil role user dan redirect sesuai role
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (user) {
+      const { data: userData } = await supabase
+        .from("users")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      if (userData?.role) {
+        const ROLE_PATHS: Record<string, string> = {
+          "Admin": "/admin",
+          "Kepala_Bidang": "/unit-pengolah",
+          "Sekretaris": "/unit-kearsipan", 
+          "Pegawai": "/user",
+          "Kepala_Dinas": "/kepala-dinas",
+        };
+
+        const redirectPath = ROLE_PATHS[userData.role] || "/user";
+        return redirect(redirectPath);
+      }
+    }
+  } catch (roleError) {
+    console.error("Error getting user role:", roleError);
+  }
+
+  // Fallback: redirect ke home page yang akan handle role-based routing
+  return redirect("/");
 };
 
 export const forgotPasswordAction = async (formData: FormData) => {
@@ -214,6 +243,73 @@ export const signOutAction = async () => {
   await supabase.auth.signOut();
   return redirect("/sign-in");
 };
+
+// User Profile Actions (for /settings page)
+export async function getCurrentUserProfile() {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    console.error("getCurrentUserProfile: Error fetching auth user or no user.", authError);
+    return { success: false, message: "Sesi tidak ditemukan atau tidak valid.", data: null };
+  }
+
+  try {
+    const { data: userProfile, error: profileError } = await supabase
+      .from("users")
+      .select(`
+        user_id,
+        nama,
+        email,
+        nip,
+        pangkat,
+        jabatan,
+        role,
+        id_bidang_fkey,
+        daftar_bidang (nama_bidang)
+      `)
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError) throw profileError;
+    return { success: true, data: userProfile };
+  } catch (error: any) {
+    console.error("Error fetching current user profile:", error);
+    return { success: false, message: error.message || "Gagal mengambil data profil pengguna.", data: null };
+  }
+}
+
+export async function updateCurrentUserProfileAction(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { success: false, message: "Sesi tidak ditemukan atau tidak valid." };
+  }
+
+  const nama = formData.get("nama") as string;
+  const nip = formData.get("nip") as string || null;
+  const pangkat = formData.get("pangkat") as string || null;
+  // Email, Jabatan, Role, dan Bidang tidak diizinkan diubah oleh pengguna biasa di halaman ini.
+  // Password diubah melalui mekanisme reset password atau halaman khusus.
+
+  if (!nama) {
+    return { success: false, message: "Nama wajib diisi." };
+  }
+
+  try {
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({ nama, nip, pangkat })
+      .eq("user_id", user.id);
+
+    if (updateError) throw updateError;
+    return { success: true, message: "Profil berhasil diperbarui." };
+  } catch (error: any) {
+    console.error("Error updating current user profile:", error);
+    return { success: false, message: error.message || "Gagal memperbarui profil." };
+  }
+}
 
 // Admin User Management Actions
 

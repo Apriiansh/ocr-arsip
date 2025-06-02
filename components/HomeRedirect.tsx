@@ -286,9 +286,9 @@ export default function HomeRedirect() {
     if (loading) {
         return (
             <div className="w-full h-full flex items-center justify-center">
-                <div className="relative">
-
-                </div>
+                <p className="text-lg text-foreground animate-pulse">
+                    Mengarahkan Anda...
+                </p>
             </div>
         );
     }
