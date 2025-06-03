@@ -140,13 +140,16 @@ export const signInAction = async (formData: FormData) => {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (user) {
-      const { data: userData } = await supabase
+      const { data: userData, error: userDbError } = await supabase
         .from("users")
         .select("role")
         .eq("user_id", user.id)
         .single();
 
-      if (userData?.role) {
+      if (userDbError) {
+        console.error(`signInAction: Error fetching role for user ${user.id}:`, JSON.stringify(userDbError, null, 2));
+        // Fall through to fallback redirect
+      } else if (userData?.role) {
         const ROLE_PATHS: Record<string, string> = {
           "Admin": "/admin",
           "Kepala_Bidang": "/unit-pengolah",
@@ -154,16 +157,23 @@ export const signInAction = async (formData: FormData) => {
           "Pegawai": "/user",
           "Kepala_Dinas": "/kepala-dinas",
         };
-
         const redirectPath = ROLE_PATHS[userData.role] || "/user";
+        console.log(`signInAction: User ${user.id} has role ${userData.role}. Redirecting to ${redirectPath}.`);
         return redirect(redirectPath);
+      } else {
+        console.warn(`signInAction: User ${user.id} found, but role not found in users table or userData is null. userData:`, userData);
+        // Fall through to fallback redirect
       }
+    } else {
+      console.warn(`signInAction: supabase.auth.getUser() returned no user immediately after successful signInWithPassword.`);
+      // Fall through to fallback redirect
     }
   } catch (roleError) {
     console.error("Error getting user role:", roleError);
   }
 
   // Fallback: redirect ke home page yang akan handle role-based routing
+  console.log(`signInAction: Falling back to redirect to '/' for user. Email: ${email}`);
   return redirect("/");
 };
 
