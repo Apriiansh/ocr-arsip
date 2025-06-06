@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/client";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, ChevronDown, ChevronRight, User, Settings, FileText, BarChart, Users, Home, Bell, LogOut } from "lucide-react"; // Archive icon is no longer needed
 import { User as SupabaseUser } from '@supabase/supabase-js';
+import { signOutAction } from "@/app/actions";
 
 // Constants for roles and styling
 const ROLES = {
@@ -38,6 +39,7 @@ export default function Navbar() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [userRole, setUserRole] = useState(ROLES.PEGAWAI);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Refs for handling click outside dropdown
   const dropdownRefs = useRef<DropdownRefs>({});
@@ -253,11 +255,13 @@ export default function Navbar() {
   const handleLogout = async () => {
     try {
       closeAllMenusAndDropdowns();
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("Error during sign out:", error);
-      } else {
-        sessionStorage.removeItem('loginNotificationShown'); // Hapus flag saat logout berhasil
+      setIsLoggingOut(true);
+      try {
+        await signOutAction();
+      } catch (error) {
+        console.error("Error during logout:", error);
+      } finally {
+        setIsLoggingOut(false);
       }
     } catch (e) {
       console.error("Unexpected error during logout:", e);

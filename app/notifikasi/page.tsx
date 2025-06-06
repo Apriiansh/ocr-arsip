@@ -11,7 +11,7 @@ interface NotificationItem {
     message: string;
     created_at: string;
     is_read: boolean;
-    link?: string; // Tambahkan properti link (opsional)
+    link?: string;
 }
 
 export default function NotifikasiPage() {
@@ -39,7 +39,7 @@ export default function NotifikasiPage() {
 
             const { data, error } = await supabase
                 .from("notifications")
-                .select("id_notif, message, created_at, is_read, link") // Tambahkan link di select
+                .select("id_notif, message, created_at, is_read, link")
                 .eq("user_id", user.id)
                 .order("created_at", { ascending: false });
 
@@ -104,7 +104,7 @@ export default function NotifikasiPage() {
                                         href={item.link}
                                         className="inline-block mt-2 md:mt-0 px-3 py-1 bg-primary text-primary-foreground rounded text-xs font-medium hover:bg-primary/80 transition"
                                         onClick={e => {
-                                            e.stopPropagation(); // Mencegah handler onClick dari <li> terpicu
+                                            e.stopPropagation(); 
                                             if (!item.is_read) {
                                                 handleMarkAsRead(item.id_notif);
                                             }

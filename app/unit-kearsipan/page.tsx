@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -13,7 +13,6 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
-import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 
 interface ArsipInaktif {
     id_arsip_inaktif: string;
@@ -43,17 +42,15 @@ export default function SekretarisHome() {
     const [arsipTerbaru, setArsipTerbaru] = useState<ArsipInaktif[]>([]);
     const [arsipMendekatiBerakhir, setArsipMendekatiBerakhir] = useState<ArsipInaktif[]>([]);
 
-    // Constants
     const ALLOWED_ROLE = "Sekretaris";
     const SIGN_IN_PATH = "/sign-in";
     const DEFAULT_HOME_PATH = "/";
     const CHART_COLORS = {
-        "Belum Diproses": "hsl(45, 100%, 60%)", // Warm yellow
-        "Disetujui": "hsl(142, 72%, 29%)", // Green
-        "Ditolak": "hsl(0, 84%, 60%)" // Red from destructive
+        "Belum Diproses": "hsl(45, 100%, 60%)", 
+        "Disetujui": "hsl(142, 72%, 29%)", 
+        "Ditolak": "hsl(0, 84%, 60%)"
     };
 
-    // Helper function to calculate days remaining
     const calculateDaysRemaining = (endDate: string) => {
         const end = new Date(endDate);
         const now = new Date();
@@ -62,7 +59,6 @@ export default function SekretarisHome() {
         return diffDays;
     };
 
-    // Authentication Check
     const checkAuth = useCallback(async () => {
         try {
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -92,22 +88,19 @@ export default function SekretarisHome() {
             router.push(message === "Unauthorized role" ? DEFAULT_HOME_PATH : SIGN_IN_PATH);
             return false;
         }
-    }, [router, supabase]);
+    }, [router, supabase]); 
 
-    // Data Fetching
     const fetchDashboardData = useCallback(async () => {
         try {
             setDataLoading(true);
             setError(null);
 
-            // Fetch total arsip
             const { count: total, error: totalError } = await supabase
                 .from("arsip_inaktif")
                 .select("id_arsip_inaktif", { count: "exact", head: true });
 
             if (totalError) throw totalError;
 
-            // Fetch arsip menunggu persetujuan
             const { count: menungguCount, error: menungguError } = await supabase
                 .from("arsip_inaktif")
                 .select("id_arsip_inaktif", { count: "exact", head: true })
@@ -115,7 +108,6 @@ export default function SekretarisHome() {
 
             if (menungguError) throw menungguError;
 
-            // Fetch arsip mendekati batas waktu (30 hari ke depan)
             const thirtyDaysFromNow = new Date();
             thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
             const { data: deadlineData, count: deadlineCount, error: deadlineError } = await supabase
@@ -127,7 +119,6 @@ export default function SekretarisHome() {
 
             if (deadlineError) throw deadlineError;
 
-            // Fetch status distribution
             const { data: statusData, error: statusError } = await supabase
                 .from("arsip_inaktif")
                 .select("status_persetujuan");
@@ -146,7 +137,6 @@ export default function SekretarisHome() {
                 }
             });
 
-            // Fetch arsip terbaru
             const { data: arsipBaru, error: arsipError } = await supabase
                 .from("arsip_inaktif")
                 .select("id_arsip_inaktif, kode_klasifikasi, created_at, tanggal_berakhir")
@@ -193,25 +183,19 @@ export default function SekretarisHome() {
         initializeDashboard();
     }, [checkAuth, fetchDashboardData]);
 
-    if (authLoading || dataLoading) {
-        // Konsisten dengan wrapper loading di halaman Kepala Bidang
-        return (
-            <div className="bg-background p-6 w-full h-full"> {/* Added h-full */}
-                <div className="max-w-screen-2xl mx-auto h-full flex items-center justify-center"> {/* Added h-full and centering for skeleton */}
-                    <LoadingSkeleton />
-                </div>
-            </div>
-        );
+    // Show loading skeleton while auth is loading or data is loading initially
+    if (authLoading || (dataLoading && !stats.totalArsip)) {
+        return null; // The loading.tsx will handle this
     }
 
     if (error) {
         return (
-            <div className="bg-background flex flex-col items-center justify-center p-6 w-full h-full"> {/* Added h-full, removed flex-grow */}
+            <div className="bg-background flex flex-col items-center justify-center p-6 w-full h-full">
                 <div className="text-center">
                     <h2 className="text-2xl font-bold text-foreground mb-4">Terjadi Kesalahan</h2>
                     <p className="text-muted-foreground mb-6">{error}</p>
                     <button
-                        onClick={fetchDashboardData} // Atau handleRefresh jika ada fungsi refresh khusus
+                        onClick={fetchDashboardData}
                         className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
                     >
                         Coba Lagi
@@ -222,11 +206,10 @@ export default function SekretarisHome() {
     }
 
     return (
-        <div className="bg-background p-6 w-full h-full"> {/* Added h-full */}
-            <div className="max-w-screen-2xl mx-auto w-full h-full space-y-8" > {/* Added h-full to content container */}
+        <div className="bg-background p-6 w-full h-full"> 
+            <div className="max-w-screen-2xl mx-auto w-full h-full space-y-8" >
                 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10"> {/* Disesuaikan: md, lg tetap 3 karena ada 3 kartu, mb-10 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
                     <div className="card-neon p-6 rounded-xl">
                         <div className="flex items-center gap-4">
                             <div className="bg-primary/10 p-3 rounded-full">
@@ -279,80 +262,95 @@ export default function SekretarisHome() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Status Persetujuan Chart */}
-                    <div className="lg:col-span-2 card-neon p-6 rounded-xl">
-                        <h3 className="text-xl font-semibold text-foreground mb-6 flex items-center gap-2">
-                            <FaChartBar className="text-primary" />
-                            Status Persetujuan Arsip
-                        </h3>
-                        <div className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={statusPersetujuan}>
-                                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                                    <XAxis dataKey="name" />
-                                    <YAxis />
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: 'hsl(var(--card))',
-                                            border: '1px solid hsl(var(--border))',
-                                            borderRadius: '0.5rem'
-                                        }}
-                                    />
-                                    <Bar 
-                                        dataKey="jumlah" 
-                                        fill="hsl(var(--primary))"
-                                        radius={[4, 4, 0, 0]}
-                                    >
-                                        {statusPersetujuan.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name as keyof typeof CHART_COLORS]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                    <Suspense fallback={
+                        <div className="lg:col-span-2 card-neon p-6 rounded-xl">
+                            <div className="animate-pulse">
+                                <div className="h-6 bg-muted rounded mb-6 w-3/4"></div>
+                                <div className="h-[300px] bg-muted rounded"></div>
+                            </div>
                         </div>
-                    </div>
+                    }>
+                        <div className="lg:col-span-2 card-neon p-6 rounded-xl">
+                            <h3 className="text-xl font-semibold text-foreground mb-6 flex items-center gap-2">
+                                <FaChartBar className="text-primary" />
+                                Status Persetujuan Arsip
+                            </h3>
+                            <div className="h-[300px]">
+                                {statusPersetujuan.some(s => s.jumlah > 0) ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={statusPersetujuan}>
+                                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                            <XAxis dataKey="name" fontSize={12} />
+                                            <YAxis allowDecimals={false} fontSize={12}/>
+                                            <Tooltip
+                                                contentStyle={{
+                                                    backgroundColor: 'hsl(var(--card))',
+                                                    border: '1px solid hsl(var(--border))',
+                                                    borderRadius: '0.5rem'
+                                                }}
+                                            />
+                                            <Bar 
+                                                dataKey="jumlah" 
+                                                radius={[4, 4, 0, 0]}
+                                            >
+                                                {statusPersetujuan.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name as keyof typeof CHART_COLORS] || 'hsl(var(--primary))'} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                                        Tidak ada data status persetujuan.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </Suspense>
 
                     {/* Arsip Terbaru */}
-                    <div className="card-neon p-6 rounded-xl">
-                        <h3 className="text-xl font-semibold text-foreground mb-6 flex items-center gap-2">
-                            <FaFolder className="text-primary" />
-                            Arsip Terbaru
-                        </h3>
-                        <div className="space-y-4">
-                            {arsipTerbaru.length > 0 ? (
-                                arsipTerbaru.map((arsip) => (
-                                    <div
-                                        key={arsip.id_arsip_inaktif}
-                                        className="p-4 bg-muted/50 rounded-lg"
-                                    >
-                                        <div className="flex items-center justify-between mb-2">
-                                            <p className="font-medium text-sm text-foreground">{arsip.kode_klasifikasi}</p>
-                                            <span className="text-xs text-muted-foreground">
-                                                {new Date(arsip.created_at).toLocaleDateString('id-ID')}
-                                            </span>
+                    <Suspense fallback={
+                        <div className="card-neon p-6 rounded-xl">
+                            <div className="animate-pulse">
+                                <div className="h-6 bg-muted rounded mb-6 w-1/2"></div>
+                                <div className="space-y-4">
+                                    {[...Array(3)].map((_, i) => (
+                                        <div key={i} className="p-4 bg-muted rounded-lg">
+                                            <div className="h-4 bg-muted-foreground/20 rounded mb-2 w-3/4"></div>
+                                            <div className="h-3 bg-muted-foreground/20 rounded w-1/2"></div>
                                         </div>
-                                        <Link
-                                            href={`/unit-kearsipan/verifikasi-arsip/${arsip.id_arsip_inaktif}`}
-                                            className="text-xs text-primary hover:underline flex items-center gap-1"
-                                        >
-                                            Lihat Detail
-                                            <FaExternalLinkAlt size={10} />
-                                        </Link>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    Belum ada arsip terbaru
+                                    ))}
                                 </div>
-                            )}
+                            </div>
                         </div>
-                        <Link
-                            href="/unit-kearsipan/verifikasi-arsip"
-                            className="text-sm text-primary hover:underline mt-4 inline-block"
-                        >
-                            Lihat Selengkapnya...
-                        </Link>
-                    </div>
+                    }>
+                        <div className="card-neon p-6 rounded-xl">
+                            <h3 className="text-xl font-semibold text-foreground mb-6 flex items-center gap-2">
+                                <FaFolder className="text-primary" />
+                                Arsip Terbaru
+                            </h3>
+                            <div className="space-y-4">
+                                {arsipTerbaru.length > 0 ? (
+                                    arsipTerbaru.map((arsip) => (
+                                        <div key={arsip.id_arsip_inaktif} className="p-4 bg-muted/50 rounded-lg">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <p className="font-medium text-sm text-foreground">{arsip.kode_klasifikasi}</p>
+                                                <span className="text-xs text-muted-foreground">{new Date(arsip.created_at).toLocaleDateString('id-ID')}</span>
+                                            </div>
+                                            <Link href={`/unit-kearsipan/verifikasi-arsip/${arsip.id_arsip_inaktif}`} className="text-xs text-primary hover:underline flex items-center gap-1">
+                                                Lihat Detail <FaExternalLinkAlt size={10} />
+                                            </Link>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-8 text-muted-foreground">Belum ada arsip terbaru</div>
+                                )}
+                            </div>
+                            <Link href="/unit-kearsipan/verifikasi-arsip" className="text-sm text-primary hover:underline mt-4 inline-block">
+                                Lihat Selengkapnya...
+                            </Link>
+                        </div>
+                    </Suspense>
                 </div>
             </div>
         </div>

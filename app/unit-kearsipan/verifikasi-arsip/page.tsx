@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/client";
 import { FileCheck, CheckCircle2, XCircle, Search, Filter, Box } from "lucide-react";
 import { toast } from "react-toastify";
 import { sendUserNotification } from "@/utils/notificationService";
+import { LoadingSkeleton } from "./components/VerifikasiArsipSkeleton"; // Import skeleton
 
 interface ArsipInaktif {
     id_arsip_inaktif: string;
@@ -27,84 +28,6 @@ interface ArsipInaktif {
     tanggal_pindah: string | null;
     user_id?: string; // Untuk notifikasi
 }
-
-// Loading Skeleton Component
-const LoadingSkeleton = () => {
-    return (
-        <div className="space-y-6 animate-pulse">
-            {/* Header Skeleton (as part of the page skeleton) */}
-            <div className="bg-primary/10 h-16 flex justify-between items-center px-6 py-4 rounded-t-xl">
-                <div className="h-8 w-3/5 bg-primary/20 rounded-lg"></div>
-                <div className="flex gap-2">
-                    <div className="h-9 w-28 bg-primary/20 rounded-lg"></div>
-                    <div className="h-9 w-28 bg-primary/20 rounded-lg"></div>
-                </div>
-            </div>
-
-            {/* Filters Skeleton (as part of the page skeleton) */}
-            <div className="px-6 py-4 border-y border-border/50">
-                <div className="flex gap-4">
-                    <div className="h-10 w-2/3 bg-muted rounded-lg"></div>
-                    <div className="h-10 w-1/3 bg-muted rounded-lg"></div>
-                </div>
-            </div>
-
-            {/* Table Skeleton (actual table structure) */}
-            <div className="overflow-x-auto px-6 py-4">
-                <table className="min-w-full">
-                    <thead>
-                        <tr className="bg-muted text-muted-foreground"> 
-                            <th className="px-4 py-3 w-12"><div className="h-4 w-4 bg-muted-foreground/20 rounded mx-auto"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-24 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-20 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-48 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-48 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-32 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-24 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-28 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-24 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-20 bg-muted-foreground/20 rounded"></div></th> 
-                            <th className="px-4 py-3"><div className="h-4 w-20 bg-muted-foreground/20 rounded"></div></th> 
-                            <th className="px-4 py-3"><div className="h-4 w-20 bg-muted-foreground/20 rounded"></div></th> 
-                            <th className="px-4 py-3"><div className="h-4 w-28 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-24 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-20 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-20 bg-muted-foreground/20 rounded"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-16 bg-muted-foreground/20 rounded mx-auto"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-24 bg-muted-foreground/20 rounded mx-auto"></div></th>
-                            <th className="px-4 py-3"><div className="h-4 w-24 bg-muted-foreground/20 rounded mx-auto"></div></th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                        {[...Array(5)].map((_, i) => (
-                            <tr key={i} className="bg-card">
-                                <td className="px-4 py-4 text-center"><div className="h-4 w-4 bg-muted/50 rounded mx-auto"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4 text-center"><div className="h-4 w-4 bg-muted/50 rounded mx-auto"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4 text-center"><div className="h-4 w-12 bg-muted/50 rounded mx-auto"></div></td>
-                                <td className="px-4 py-4 text-center"><div className="h-4 w-full bg-muted/50 rounded"></div></td>
-                                <td className="px-4 py-4 text-center"><div className="h-6 w-24 bg-muted/50 rounded-full mx-auto"></div></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
 
 export default function VerifikasiArsipInaktif() {
     const supabase = createClient();
@@ -313,15 +236,9 @@ export default function VerifikasiArsipInaktif() {
         return <span className="opacity-0 group-hover:opacity-50 transition-opacity">↕</span>;
     };
     if (authLoading) { // Show full page skeleton during initial auth
-        return (
-            <div className="w-full h-full p-6">
-                <div className="max-w-8xl mx-auto w-full h-full flex flex-col">
-                    <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col">
-                        <LoadingSkeleton /> 
-                    </div>
-                </div>
-            </div>
-        );
+        // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
+        // Ini akan berguna untuk re-fetch.
+        return null;
     }
 
     return (

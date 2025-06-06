@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"; // Ditambahkan karena digunakan di 
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { sendUserNotification } from "@/utils/notificationService";
+import { LoadingSkeleton } from "./components/VerifikasiArsipSkeleton"; // Import skeleton
 import { ChevronLeft, ChevronRight, Search, CheckCircle2, XCircle, Check, X, FileCheck, Box, Filter } from "lucide-react";
 
 interface Arsip {
@@ -30,37 +31,6 @@ interface Arsip {
         no_folder: string | null;
     } | null;
 }
-
-// Loading Skeleton Component
-const LoadingSkeleton = () => {
-    return (
-        <div className="space-y-6 animate-pulse">
-            {/* Header Skeleton */}
-            <div className="bg-primary/10 h-16 flex justify-between items-center px-6 py-4 rounded-lg">
-                <div className="h-8 w-3/5 bg-primary/20 rounded-lg"></div>
-                <div className="flex gap-2">
-                    <div className="h-9 w-28 bg-primary/20 rounded-lg"></div>
-                    <div className="h-9 w-28 bg-primary/20 rounded-lg"></div>
-                </div>
-            </div>
-
-            {/* Filters Skeleton */}
-            <div className="px-6 py-4 border-y border-border/50">
-                <div className="flex gap-4">
-                    <div className="h-10 w-2/3 bg-muted rounded-lg"></div>
-                    <div className="h-10 w-1/3 bg-muted rounded-lg"></div>
-                </div>
-            </div>
-
-            {/* Table Skeleton */}
-            <div className="px-6">
-                <div className="bg-muted p-4">
-                    <div className="h-8 w-full bg-muted-foreground/10 rounded"></div>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 export default function VerifikasiArsip() {
     const supabase = createClient();
@@ -364,15 +334,9 @@ export default function VerifikasiArsip() {
     };
 
     if (authLoading) {
-        return (
-            <div className="w-full h-full p-6"> {/* Consistent page padding */}
-                <div className="max-w-8xl mx-auto w-full h-full flex flex-col"> {/* Content wrapper */}
-                    <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col">
-                        <LoadingSkeleton /> {/* LoadingSkeleton renders the inner parts of the card */}
-                    </div>
-                </div>
-            </div>
-        );
+        // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
+        // Ini akan berguna untuk re-fetch.
+        return null;
     }
 
     return (

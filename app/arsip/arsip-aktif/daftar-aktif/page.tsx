@@ -7,51 +7,6 @@ import { ChevronLeft, ChevronRight, Search, Trash2, Eye, FileText, FolderOpen, F
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { exportArsipAktifToExcel } from '../components/DaftarArsipAktifExcel'; // Path ke komponen baru
-// Loading Skeleton Component
-const TableLoadingSkeleton = () => {
-  return (
-    <>
-      {/* Header Skeleton (mimicking the one inside card-neon) */}
-      <div className="bg-primary/10 px-6 py-4 flex justify-between items-center">
-        <div className="h-8 w-48 bg-primary/20 rounded animate-pulse"></div> {/* Skeleton untuk Judul "Daftar Arsip Aktif" */}
-        <div className="flex gap-2"> {/* Kontainer untuk skeleton tombol */}
-          <div className="h-9 w-32 bg-primary/20 rounded animate-pulse"></div> {/* Skeleton untuk tombol Export Excel */}
-          <div className="h-9 w-36 bg-primary/20 rounded animate-pulse"></div> {/* Skeleton untuk tombol Visualisasi Filing */}
-        </div>
-      </div>
-
-      {/* Search Bar Skeleton */}
-      <div className="p-6 border-b border-border/50">
-        <div className="h-12 bg-input rounded-lg animate-pulse"></div>
-      </div>
-
-      {/* Filter/Action Skeleton */}
-      <div className="px-6 py-3 border-b border-border/50 flex justify-between items-center">
-        <div className="h-10 w-48 bg-input rounded-lg animate-pulse"></div> {/* For filter select */}
-        <div className="h-10 w-32 bg-accent/50 rounded-lg animate-pulse"></div> {/* For reorder button */}
-      </div>
-
-      {/* Table Skeleton */}
-      <div className="p-6 flex-grow flex flex-col overflow-auto">
-        <div className="overflow-x-auto rounded-lg border border-border animate-pulse">
-          <div className="h-10 bg-muted/50 w-full rounded-t-lg"></div> {/* Header row */}
-          {[...Array(10)].map((_, i) => (
-            <div key={i} className="h-12 border-t border-border bg-card flex items-center px-3">
-              <div className="h-4 bg-muted/30 rounded w-full"></div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Pagination Skeleton */}
-      <div className="flex justify-between items-center p-4 border-t border-border/50 mt-auto">
-        <div className="h-10 w-28 bg-muted/50 rounded animate-pulse"></div>
-        <div className="h-6 w-32 bg-muted/50 rounded animate-pulse"></div>
-        <div className="h-10 w-28 bg-muted/50 rounded animate-pulse"></div>
-      </div>
-    </>
-  );
-};
 
 interface LokasiPenyimpanan {
   id_bidang_fkey: number;
@@ -198,80 +153,71 @@ export default function DaftarArsipAktif() {
     setArsipList([]);
     setTotalPages(0);
   }
-  setLoading(false);
+  finally {
+    setLoading(false); // Pastikan setLoading(false) selalu dipanggil
+  }
 }, [currentPage, itemsPerPage, supabase, userBidangId, sortConfig, statusFilterAktif]);
 
   useEffect(() => {
     console.log("useEffect (auth check): Running checkAuth...");
     const checkAuth = async () => {
       setAuthLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        console.warn("No active session, redirecting to sign-in.");
-        router.push(SIGN_IN_PATH);
-        setAuthLoading(false);
-        return;
-      }
-      console.log(`checkAuth: Session found.`);
-
-      // Jika ada sesi, periksa peran pengguna
-      const userId = session.user.id;
-      let userRole: string | null = null;
-
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+          console.warn("No active session, redirecting to sign-in.");
+          router.push(SIGN_IN_PATH);
+          return; // authLoading akan diatur di finally
+        }
+        console.log(`checkAuth: Session found.`);
+
+        const userId = session.user.id;
         console.log(`checkAuth: Fetching user data for ${userId}`);
         const { data: userData, error: userFetchError } = await supabase
           .from("users") // Pastikan nama tabel ini ('users') sesuai dengan database Anda
           .select("role, id_bidang_fkey") // Ambil juga id_bidang_fkey
           .eq("user_id", userId) // Pastikan nama kolom ini ('user_id') sesuai
           .single();
-        
+
         console.log(`checkAuth: User data fetched for ${userId}. Data:`, userData, "Error:", userFetchError);
 
         if (userFetchError) {
           console.error("Error fetching user role:", userFetchError);
           toast.error("Gagal memverifikasi peran pengguna: " + userFetchError.message);
           setUserBidangId(null);
-          setAuthLoading(false);
           router.push(SIGN_IN_PATH);
-          return;
+          return; // authLoading akan diatur di finally
         }
 
         if (!userData || !userData.role || userData.id_bidang_fkey === null) {
           console.warn(`checkAuth: Data pengguna (peran/bidang) tidak lengkap untuk userId: ${userId}. Redirecting.`, userData);
           toast.warn("Data pengguna (peran/bidang) tidak lengkap. Silakan login kembali.");
           setUserBidangId(null);
-          setAuthLoading(false);
           router.push(SIGN_IN_PATH); // Arahkan ke sign-in jika data user tidak lengkap
-          return;
+          return; // authLoading akan diatur di finally
         }
-        userRole = userData.role;
+
         setUserBidangId(userData.id_bidang_fkey); // Simpan id_bidang_fkey pengguna
 
-        if (userData.id_bidang_fkey === null) {
-            console.warn(`checkAuth: User ${userId} has role ${userData.role} but id_bidang_fkey is null.`);
-            toast.error("ID Bidang pengguna tidak ditemukan. Tidak dapat memfilter arsip.");
-            // userBidangId akan null, fetchData tidak akan fetch
+        // Cek peran setelah semua data pengguna ada
+        if (userData.role !== ALLOWED_ROLE) {
+          console.warn(`User role "${userData.role}" is not authorized for this page. Redirecting.`);
+          toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini. Peran Anda: " + userData.role);
+          setUserBidangId(null); // Set userBidangId ke null sebelum redirect
+          router.push(DEFAULT_HOME_PATH); // HomeRedirect akan mengarahkan sesuai peran
+          return; // authLoading akan diatur di finally
         }
+
       } catch (error: any) {
         console.error("checkAuth: Unexpected error fetching user role:", error.message);
         toast.error("Terjadi kesalahan saat verifikasi peran: " + error.message);
         setUserBidangId(null);
-        setAuthLoading(false);
         router.push(SIGN_IN_PATH);
-        return;
+        // Tidak perlu return di sini karena finally akan dijalankan
+      } finally {
+        setAuthLoading(false); // Pastikan authLoading selalu diatur ke false
       }
-
-      if (userRole !== ALLOWED_ROLE) {
-        console.warn(`User role "${userRole}" is not authorized for this page. Redirecting.`);
-        toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini. Peran Anda: " + userRole);
-        setUserBidangId(null);
-        setAuthLoading(false);
-        router.push(DEFAULT_HOME_PATH); // HomeRedirect akan mengarahkan sesuai peran
-        return;
-      }
-      setAuthLoading(false);
     };
     checkAuth();
   }, [router, supabase, SIGN_IN_PATH, DEFAULT_HOME_PATH, ALLOWED_ROLE]);
@@ -468,15 +414,13 @@ export default function DaftarArsipAktif() {
   // Tampilkan skeleton jika authLoading atau loading (untuk data tabel) true
   if (authLoading || loading) {
     // Wrapper untuk skeleton agar konsisten dengan halaman lain
-    return (
-        <div className="w-full h-full p-6">
-            <div className="max-w-10xl mx-auto w-full h-full flex flex-col">
-                <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col">
-                    <TableLoadingSkeleton />
-                </div>
-            </div>
-        </div>
-    );
+    // Tidak perlu merender TableLoadingSkeleton di sini lagi jika loading.tsx sudah ada
+    // dan Suspense digunakan di level atas.
+    // Namun, jika Anda ingin skeleton spesifik saat data di-refetch (loading=true tapi authLoading=false),
+    // Anda bisa mengembalikannya di sini. Untuk loading awal, loading.tsx akan menangani.
+    // Untuk konsistensi dengan loading.tsx, kita bisa merender null atau skeleton yang lebih sederhana
+    // jika loading.tsx sudah menangani skeleton utama.
+    return null; // Atau skeleton yang lebih minimal jika diperlukan untuk re-fetch
   }
 
   return (

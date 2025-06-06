@@ -27,50 +27,6 @@ export interface ArsipInaktifRow {
   status_persetujuan: string | null;
 }
 
-// Loading Skeleton Component (disesuaikan untuk Arsip Inaktif)
-const TableLoadingSkeleton = () => {
-  return (
-    <>
-      {/* Header Skeleton (mimicking the one inside card-neon) */}
-      <div className="bg-primary/10 px-6 py-4 flex justify-between items-center">
-        <div className="h-8 w-56 bg-primary/20 rounded animate-pulse"></div> {/* Skeleton untuk Judul "Daftar Arsip Inaktif" */}
-        <div className="flex gap-2"> {/* Kontainer untuk skeleton tombol */}
-          <div className="h-9 w-32 bg-primary/20 rounded animate-pulse"></div> {/* Skeleton untuk tombol Export Excel */}
-        </div>
-      </div>
-
-      {/* Search Bar Skeleton */}
-      <div className="p-6 border-b border-border/50">
-        <div className="h-12 bg-input rounded-lg animate-pulse"></div>
-      </div>
-
-      {/* Action Button Skeleton */}
-      <div className="px-6 py-3 border-b border-border/50 flex justify-end">
-        <div className="h-10 w-40 bg-accent/50 rounded-lg animate-pulse"></div> {/* For reorder button */}
-      </div>
-
-      {/* Table Skeleton */}
-      <div className="p-6 flex-grow flex flex-col overflow-auto">
-        <div className="overflow-x-auto rounded-lg border border-border animate-pulse">
-          <div className="h-10 bg-muted/50 w-full rounded-t-lg"></div> {/* Header row */}
-          {[...Array(10)].map((_, i) => (
-            <div key={i} className="h-12 border-t border-border bg-card flex items-center px-3">
-              <div className="h-4 bg-muted/30 rounded w-full"></div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Pagination Skeleton */}
-      <div className="flex justify-between items-center p-4 border-t border-border/50 mt-auto">
-        <div className="h-10 w-28 bg-muted/50 rounded animate-pulse"></div>
-        <div className="h-6 w-32 bg-muted/50 rounded animate-pulse"></div>
-        <div className="h-10 w-28 bg-muted/50 rounded animate-pulse"></div>
-      </div>
-    </>
-  );
-};
-
 export default function DaftarArsipInaktif() {
   const supabase = createClient();
   const router = useRouter();
@@ -96,23 +52,31 @@ export default function DaftarArsipInaktif() {
 
     console.log(`fetchData (daftar-inaktif): Querying page: ${currentPage}, itemsPerPage: ${itemsPerPage}, range: ${startIndex}-${endIndex}`);
 
-    const { data, error, count } = await supabase
-      .from("arsip_inaktif")
-      .select(`*`, { count: "exact" }) // Ambil semua kolom dari arsip_inaktif
-      .order("nomor_berkas", { ascending: true })
-      .range(startIndex, endIndex);
+    try {
+      const { data, error, count } = await supabase
+        .from("arsip_inaktif")
+        .select(`*`, { count: "exact" }) // Ambil semua kolom dari arsip_inaktif
+        .order("nomor_berkas", { ascending: true })
+        .range(startIndex, endIndex);
 
-    console.log(`fetchData (daftar-inaktif): Arsip data query result - data:`, data, "count:", count, "error:", error);
+      console.log(`fetchData (daftar-inaktif): Arsip data query result - data:`, data, "count:", count, "error:", error);
 
-    if (error) {
-      toast.error("Gagal memuat data arsip inaktif: " + error.message);
+      if (error) {
+        toast.error("Gagal memuat data arsip inaktif: " + error.message);
+        setArsipList([]);
+        setTotalPages(0);
+      } else {
+        setArsipList(data as ArsipInaktifRow[] || []);
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage));
+      }
+    } catch (e: any) {
+      console.error("fetchData (daftar-inaktif): Unexpected error during fetch:", e);
+      toast.error("Terjadi kesalahan tak terduga saat mengambil data: " + e.message);
       setArsipList([]);
       setTotalPages(0);
-    } else {
-      setArsipList(data as ArsipInaktifRow[] || []);
-      setTotalPages(Math.ceil((count || 0) / itemsPerPage));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [currentPage, itemsPerPage, supabase]);
 
   useEffect(() => {
@@ -120,58 +84,50 @@ export default function DaftarArsipInaktif() {
     const checkAuth = async () => {
       setAuthLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        console.warn("No active session, redirecting to sign-in.");
-        router.push(SIGN_IN_PATH);
-        setAuthLoading(false);
-        return;
-      }
-      console.log(`checkAuth (inaktif): Session found.`);
-
-      const userId = session.user.id;
-      let userRole: string | null = null;
-
       try {
+        if (!session) {
+          console.warn("No active session, redirecting to sign-in.");
+          router.push(SIGN_IN_PATH);
+          return; // authLoading akan diatur di finally
+        }
+        console.log(`checkAuth (inaktif): Session found.`);
+
+        const userId = session.user.id;
         console.log(`checkAuth (inaktif): Fetching user data for ${userId}`);
         const { data: userData, error: userFetchError } = await supabase
           .from("users")
           .select("role") // Hanya butuh role untuk otorisasi halaman
           .eq("user_id", userId)
           .single();
-        
+
         console.log(`checkAuth (inaktif): User data fetched for ${userId}. Data:`, userData, "Error:", userFetchError);
 
         if (userFetchError || !userData || !userData.role) {
           console.error("Error fetching user role or role is null:", userFetchError);
           toast.error("Gagal memverifikasi peran pengguna.");
-          setAuthLoading(false);
           router.push(SIGN_IN_PATH);
-          return;
+          return; // authLoading akan diatur di finally
         }
-        userRole = userData.role;
 
+        if (userData.role !== ALLOWED_ROLE) {
+          console.warn(`User role "${userData.role}" is not authorized for this page. Redirecting.`);
+          toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini. Peran Anda: " + userData.role);
+          router.push(DEFAULT_HOME_PATH);
+          return; // authLoading akan diatur di finally
+        }
+        // Jika semua pengecekan lolos, panggil fetchData di sini
+        // fetchData(); // Dipindahkan ke useEffect terpisah yang bergantung pada authLoading
       } catch (error: any) {
         console.error("checkAuth (inaktif): Unexpected error fetching user role:", error.message);
         toast.error("Terjadi kesalahan saat verifikasi peran: " + error.message);
-        setAuthLoading(false);
         router.push(SIGN_IN_PATH);
-        return;
+        // Tidak perlu return di sini karena finally akan dijalankan
+      } finally {
+        setAuthLoading(false); // Pastikan authLoading selalu diatur ke false
       }
-
-      if (userRole !== ALLOWED_ROLE) {
-        console.warn(`User role "${userRole}" is not authorized for this page. Redirecting.`);
-        toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini. Peran Anda: " + userRole);
-        setAuthLoading(false);
-        router.push(DEFAULT_HOME_PATH);
-        return;
-      }
-      setAuthLoading(false);
-      // Setelah auth check selesai dan berhasil, panggil fetchData
-      fetchData();
     };
     checkAuth();
-  }, [router, supabase, SIGN_IN_PATH, DEFAULT_HOME_PATH, ALLOWED_ROLE, fetchData]);
+  }, [router, supabase, SIGN_IN_PATH, DEFAULT_HOME_PATH, ALLOWED_ROLE]);
 
   // useEffect untuk memanggil fetchData ketika currentPage berubah (setelah auth check awal)
    useEffect(() => {
@@ -196,21 +152,23 @@ export default function DaftarArsipInaktif() {
 
   const handleDelete = useCallback(async (idArsip: string) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus arsip inaktif ini?")) return;
-    setLoading(true);
+    setLoading(true); // Tampilkan loading saat menghapus
+    try {
+      const { error } = await supabase
+        .from("arsip_inaktif")
+        .delete()
+        .eq("id_arsip_inaktif", idArsip);
 
-    const { error } = await supabase
-      .from("arsip_inaktif")
-      .delete()
-      .eq("id_arsip_inaktif", idArsip);
-
-    if (error) {
-      toast.error("Gagal menghapus arsip inaktif.");
-      console.error("Error deleting data:", error.message || error);
-    } else {
-      toast.success("Arsip inaktif berhasil dihapus!");
-      fetchData(); // Refresh data
+      if (error) {
+        toast.error("Gagal menghapus arsip inaktif.");
+        console.error("Error deleting data:", error.message || error);
+      } else {
+        toast.success("Arsip inaktif berhasil dihapus!");
+        fetchData(); // Refresh data
+      }
+    } finally {
+      setLoading(false); // Pastikan loading di-set false
     }
-    setLoading(false);
   }, [supabase, fetchData]);
 
   const handleNextPage = () => {
@@ -296,7 +254,13 @@ export default function DaftarArsipInaktif() {
 
   // Tampilkan skeleton jika authLoading atau loading (untuk data tabel) true
   if (authLoading || loading) {
-    return <TableLoadingSkeleton />;
+    // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
+    // Ini akan berguna untuk re-fetch (misalnya saat paginasi).
+    // Untuk konsistensi, kita bisa merender null jika loading.tsx sudah menangani skeleton utama.
+    // Atau, jika Anda ingin skeleton spesifik untuk re-fetch, Anda bisa merender TableLoadingSkeleton di sini.
+    // Saya akan mengembalikan null untuk saat ini, dengan asumsi loading.tsx menangani initial load.
+    // Jika Anda ingin skeleton saat paginasi, Anda bisa mengembalikan <TableLoadingSkeleton /> di sini.
+    return null; 
   }
 
   return (

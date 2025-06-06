@@ -1,34 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link"; // Pastikan Link diimpor jika belum
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FaRegFileAlt, FaRegCalendarAlt, FaRegCopy } from "react-icons/fa";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { toast } from "react-toastify"; // Import react-toastify
-import { Bell, ArrowRight, X as LucideX, Eye } from "lucide-react"; // Import ikon
-import { differenceInDays } from "date-fns"; // Import differenceInDays
+import { toast } from "react-toastify";
+import { Bell, ArrowRight, X as LucideX, Eye } from "lucide-react";
+import { differenceInDays } from "date-fns";
 import { createClient } from "@/utils/supabase/client";
-import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 
 export default function UserHome() {
     const supabase = createClient();
     const router = useRouter();
-    const [loading, setLoading] = useState(true);
     const [totalArsip, setTotalArsip] = useState(0);
     const [arsipBulanIni, setArsipBulanIni] = useState(0);
     const [arsipPerBulanData, setArsipPerBulanData] = useState<any[]>([]);
-    const [arsipDipindahkanCount, setArsipDipindahkanCount] = useState(0); // State baru
+    const [arsipDipindahkanCount, setArsipDipindahkanCount] = useState(0);
     const [arsipTerbaruPengguna, setArsipTerbaruPengguna] = useState<ArsipAktifRingkas[]>([]);
     const [arsipJatuhTempoTerdekatList, setArsipJatuhTempoTerdekatList] = useState<ArsipJatuhTempo[]>([]);
 
     // Constants
     const SIGN_IN_PATH = "/sign-in";
     const DETAIL_ARSIP_PATH_PREFIX = "/arsip/arsip-aktif/detail/";
-    const ARSIP_RETENSI_PATH = "/arsip/retensi"; // Tetap bisa digunakan jika halaman retensi menampilkan semua yang jatuh tempo
+    const ARSIP_RETENSI_PATH = "/arsip/retensi";
     const TOAST_RETENTION_AUTOCLOSE_DURATION = 15000; // 15 detik
     const TOAST_COMMON_CLASSNAME = "!bg-card dark:!bg-card !border !border-border !shadow-xl !rounded-xl w-[340px] max-w-[90vw] [&>.Toastify__toast-body]:!p-0 [&>.Toastify__toast-body]:!m-0 [&>.Toastify__close-button]:!hidden";
-
 
     // Interface untuk data arsip yang lebih ringkas
     interface ArsipAktifRingkas {
@@ -61,7 +58,7 @@ export default function UserHome() {
                 titleColor = "text-red-500";
             } else if (arsip.selisih_hari === 0) {
                 message = `Arsip "${arsip.kode_klasifikasi} - ${arsip.uraian_informasi}" jatuh tempo HARI INI.`;
-            } else {
+            } else {   
                 message = `Arsip "${arsip.kode_klasifikasi} - ${arsip.uraian_informasi}" akan jatuh tempo dalam ${arsip.selisih_hari} hari.`;
             }
         } else {
@@ -136,10 +133,6 @@ export default function UserHome() {
             .select("id_arsip_aktif, lokasi_penyimpanan!inner(id_bidang_fkey)", { count: "exact", head: true })
             .eq('lokasi_penyimpanan.id_bidang_fkey', userBidangId);
 
-        // Menghapus filter idsToExclude untuk total arsip aktif
-        // if (idsToExclude.length > 0) {
-        //     queryAktif = queryAktif.not('id_arsip_aktif', 'in', `(${idsToExclude.join(',')})`);
-        // }
         const { count: totalAktif, error: totalAktifError } = await queryAktif;
         if (totalAktifError) console.error("Error fetching total arsip aktif:", totalAktifError.message);
 
@@ -161,16 +154,11 @@ export default function UserHome() {
             .eq('lokasi_penyimpanan.id_bidang_fkey', userBidangId)
             .gte("created_at", firstDayOfMonth);
 
-        // Menghapus filter idsToExclude untuk arsip bulan ini
-        // if (idsToExclude.length > 0) {
-        //     queryBulanIni = queryBulanIni.not('id_arsip_aktif', 'in', `(${idsToExclude.join(',')})`);
-        // }
         const { count: bulanIni, error: bulanIniError } = await queryBulanIni;
         if (bulanIniError) console.error("Error fetching arsip bulan ini:", bulanIniError.message);
         setArsipBulanIni(bulanIni || 0);
 
         // Hitung arsip yang telah dipindahkan (ada di pemindahan_arsip_link)
-        // Menggunakan join yang benar dengan foreign key relationship
         const { count: dipindahkanCount, error: dipindahkanError } = await supabase
             .from('arsip_aktif')
             .select(`
@@ -198,11 +186,6 @@ export default function UserHome() {
             .select("id_arsip_aktif, created_at, lokasi_penyimpanan!inner(id_bidang_fkey)")
             .eq('lokasi_penyimpanan.id_bidang_fkey', userBidangId)
             .gte("created_at", fiveMonthsAgo.toISOString());
-
-        // Menghapus filter idsToExclude untuk data chart
-        // if (idsToExclude.length > 0) {
-        //     queryArsipBulanan = queryArsipBulanan.not('id_arsip_aktif', 'in', `(${idsToExclude.join(',')})`);
-        // }
 
         const { data: arsipBulanan, error } = await queryArsipBulanan;
 
@@ -247,10 +230,6 @@ export default function UserHome() {
             .order("created_at", { ascending: false })
             .limit(2);
 
-        // Menghapus filter idsToExclude untuk arsip terbaru
-        // if (idsToExclude.length > 0) {
-        //     queryTerbaru = queryTerbaru.not('id_arsip_aktif', 'in', `(${idsToExclude.join(',')})`);
-        // }
         const { data: terbaruPengguna, error } = await queryTerbaru;
 
         if (error) {
@@ -264,13 +243,12 @@ export default function UserHome() {
             .from("pemindahan_arsip_link")
             .select("id_arsip_aktif_fkey");
 
-            if (pemindahanError) {
-                console.log("Error fetching pemindahan links:", pemindahanError);
-            }
+        if (pemindahanError) {
+            console.log("Error fetching pemindahan links:", pemindahanError);
+        }
 
-            const idsToExclude = pemindahanLinks?.map(link => link.id_arsip_aktif_fkey).filter(id => id != null) || [];
+        const idsToExclude = pemindahanLinks?.map(link => link.id_arsip_aktif_fkey).filter(id => id != null) || [];
 
-        
         const { data: semuaArsipAktif, error } = await supabase
             .from("arsip_aktif")
             .select(`
@@ -283,7 +261,6 @@ export default function UserHome() {
             `)
             .eq('lokasi_penyimpanan.id_bidang_fkey', userBidangId)
             .not('id_arsip_aktif', 'in', `(${idsToExclude.join(',')})`);
-
 
         if (error) {
             console.error("Error fetching arsip untuk jatuh tempo:", error.message);
@@ -327,19 +304,18 @@ export default function UserHome() {
                 ...arsip,
                 selisih_hari: selisihHari,
             };
-        }).filter(arsip => typeof arsip.selisih_hari === 'number'); // Hanya yang punya selisih hari valid
+        }).filter(arsip => typeof arsip.selisih_hari === 'number');
 
         // Urutkan: yang sudah lewat (selisih negatif terbesar), lalu yang paling dekat (selisih positif terkecil)
         arsipDenganSelisihHari.sort((a, b) => {
             return (a.selisih_hari as number) - (b.selisih_hari as number);
         });
 
-        setArsipJatuhTempoTerdekatList(arsipDenganSelisihHari.slice(0, 3)); // Ambil 3 teratas
+        setArsipJatuhTempoTerdekatList(arsipDenganSelisihHari.slice(0, 3));
     };
 
     useEffect(() => {
         const checkAuthAndFetchData = async () => {
-            setLoading(true);
             const { data: { user }, error: userError } = await supabase.auth.getUser();
 
             if (userError || !user) {
@@ -355,24 +331,20 @@ export default function UserHome() {
                 return;
             }
 
-            // idsToExclude tidak lagi digunakan secara luas, hanya untuk 'Arsip Telah Dipindahkan'
-            // yang dihitung di dalam fetchDashboardStats
             try {
                 await Promise.all([
                     fetchDashboardStats(userBidangId),
                     fetchArsipPerBulanChartData(userBidangId),
                     fetchArsipTerbaruPengguna(userBidangId),
-                    fetchArsipJatuhTempoTerdekat(userBidangId), // Panggil fungsi baru
+                    fetchArsipJatuhTempoTerdekat(userBidangId),
                 ]);
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
-            } finally {
-                setLoading(false);
             }
         };
 
-        checkAuthAndFetchData(); // currentPathname dihapus karena tidak digunakan
-    }, [supabase, router]); // Hapus currentPathname dari dependencies
+        checkAuthAndFetchData();
+    }, [supabase, router]);
 
     // useEffect untuk menampilkan toast notifikasi retensi
     useEffect(() => {
@@ -405,7 +377,7 @@ export default function UserHome() {
                                 closeOnClick: false,
                                 pauseOnHover: true,
                                 draggable: true,
-                                closeButton: false, // Custom close button handled in RetentionToastContent
+                                closeButton: false,
                                 theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
                                 className: TOAST_COMMON_CLASSNAME,
                             }
@@ -416,20 +388,9 @@ export default function UserHome() {
         }
     }, [arsipJatuhTempoTerdekatList, router]);
 
-    if (loading) {
-        // Konsisten dengan wrapper loading di halaman Kepala Bidang
-        return (
-            <div className="bg-background p-6 w-full h-full"> {/* Added h-full */}
-                <div className="max-w-screen-2xl mx-auto h-full flex items-center justify-center"> {/* Added h-full and centering for skeleton */}
-                    <LoadingSkeleton />
-                </div>
-            </div>
-        );
-    }
     return (
-        // Menyesuaikan struktur utama dengan halaman Kepala Bidang
-        <div className="bg-background p-6 w-full h-full"> {/* Added h-full */}
-            <div className="max-w-screen-2xl mx-auto w-full h-full"> {/* Added h-full to content container */}
+        <div className="bg-background p-6 w-full h-full">
+            <div className="max-w-screen-2xl mx-auto w-full h-full">
                 <div className="w-full space-y-8">
                     {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
@@ -445,7 +406,6 @@ export default function UserHome() {
                             </div>
                         </div>
 
-                        {/* Total Arsip Card - Disesuaikan rounded-xl */}
                         <div className="card-neon p-6 rounded-xl flex items-center justify-between">
                             <div className="flex items-center">
                                 <div className="bg-primary/10 p-3 rounded-lg">
@@ -458,11 +418,10 @@ export default function UserHome() {
                             </div>
                         </div>
 
-                        {/* Arsip Telah Dipindahkan Card */}
                         <div className="card-neon p-6 rounded-xl flex items-center justify-between">
                             <div className="flex items-center">
-                                <div className="bg-accent/10 p-3 rounded-lg"> {/* Warna bisa disesuaikan */}
-                                    <FaRegCopy className="text-accent text-2xl" /> {/* Ikon bisa disesuaikan */}
+                                <div className="bg-accent/10 p-3 rounded-lg">
+                                    <FaRegCopy className="text-accent text-2xl" />
                                 </div>
                                 <div className="ml-4">
                                     <p className="text-muted-foreground text-sm">Arsip Telah Dipindahkan</p>
@@ -470,31 +429,32 @@ export default function UserHome() {
                                 </div>
                             </div>
                         </div>
-
                     </div>
 
                     {/* Charts and Info Section */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div className="card-neon p-6 rounded-xl">
+                        {/* Kontainer Chart */}
+                        <div className="card-neon p-6 rounded-xl flex flex-col"> 
                             <h4 className="text-lg font-semibold text-foreground mb-4">Arsip Ditambahkan (6 Bulan Terakhir)</h4>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={arsipPerBulanData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                                    <XAxis dataKey="name" fontSize={12} />
-                                    <YAxis allowDecimals={false} fontSize={12} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }}
-                                        labelStyle={{ color: 'hsl(var(--foreground))' }}
-                                        itemStyle={{ color: 'hsl(var(--foreground))' }}
-                                    />
-                                    <Bar dataKey="jumlah" fill="hsl(var(--primary))" name="Jumlah Arsip" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            <div className="flex-1 min-h-0"> 
+                                <ResponsiveContainer width="100%" height="100%"> 
+                                    <BarChart data={arsipPerBulanData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
+                                        <XAxis dataKey="name" fontSize={12} />
+                                        <YAxis allowDecimals={false} fontSize={12} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }}
+                                            labelStyle={{ color: 'hsl(var(--foreground))' }}
+                                            itemStyle={{ color: 'hsl(var(--foreground))' }}
+                                        />
+                                        <Bar dataKey="jumlah" fill="hsl(var(--primary))" name="Jumlah Arsip" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
 
                         {/* Info Cards */}
                         <div className="space-y-8">
-                            {/* Recent Archives Card - Disesuaikan rounded-xl */}
                             <div className="card-neon p-6 rounded-xl">
                                 <h4 className="text-lg font-semibold text-foreground mb-4">Arsip Terbaru</h4>
                                 {arsipTerbaruPengguna.length > 0 ? (
@@ -520,8 +480,7 @@ export default function UserHome() {
                                 )}
                             </div>
 
-                            {/* Retention Warning Card - Disesuaikan rounded-xl */}
-                            <div className="card-neon p-6 rounded-xl"> {/* Jatuh Tempo Terdekat */}
+                            <div className="card-neon p-6 rounded-xl">
                                 <h4 className="text-lg font-semibold text-foreground mb-4">Arsip Jatuh Tempo Terdekat</h4>
                                 {arsipJatuhTempoTerdekatList.length > 0 ? (
                                     <div className="space-y-3">

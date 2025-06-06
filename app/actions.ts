@@ -41,7 +41,6 @@ export const signUpAction = async (formData: FormData) => {
     );
   }
 
-  // Tentukan role otomatis berdasarkan jabatan
   let role = "Pegawai";
   if (
     jabatan === "Kepala Bidang"
@@ -53,7 +52,6 @@ export const signUpAction = async (formData: FormData) => {
     role = "Sekretaris";
   }
 
-  // Cek jabatan yang hanya boleh satu orang per bidang
   if (
     jabatan === "Kepala Bidang" ||
     jabatan === "Kepala Dinas" ||
@@ -135,7 +133,6 @@ export const signInAction = async (formData: FormData) => {
     return encodedRedirect("error", "/sign-in", error.message);
   }
 
-  // PERBAIKAN: Ambil role user dan redirect sesuai role
   try {
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -148,7 +145,6 @@ export const signInAction = async (formData: FormData) => {
 
       if (userDbError) {
         console.error(`signInAction: Error fetching role for user ${user.id}:`, JSON.stringify(userDbError, null, 2));
-        // Fall through to fallback redirect
       } else if (userData?.role) {
         const ROLE_PATHS: Record<string, string> = {
           "Admin": "/admin",
@@ -162,17 +158,14 @@ export const signInAction = async (formData: FormData) => {
         return redirect(redirectPath);
       } else {
         console.warn(`signInAction: User ${user.id} found, but role not found in users table or userData is null. userData:`, userData);
-        // Fall through to fallback redirect
       }
     } else {
       console.warn(`signInAction: supabase.auth.getUser() returned no user immediately after successful signInWithPassword.`);
-      // Fall through to fallback redirect
     }
   } catch (roleError) {
     console.error("Error getting user role:", roleError);
   }
 
-  // Fallback: redirect ke home page yang akan handle role-based routing
   console.log(`signInAction: Falling back to redirect to '/' for user. Email: ${email}`);
   return redirect("/");
 };
@@ -254,7 +247,6 @@ export const signOutAction = async () => {
   return redirect("/sign-in");
 };
 
-// User Profile Actions (for /settings page)
 export async function getCurrentUserProfile() {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -300,8 +292,6 @@ export async function updateCurrentUserProfileAction(formData: FormData) {
   const nama = formData.get("nama") as string;
   const nip = formData.get("nip") as string || null;
   const pangkat = formData.get("pangkat") as string || null;
-  // Email, Jabatan, Role, dan Bidang tidak diizinkan diubah oleh pengguna biasa di halaman ini.
-  // Password diubah melalui mekanisme reset password atau halaman khusus.
 
   if (!nama) {
     return { success: false, message: "Nama wajib diisi." };
@@ -320,8 +310,6 @@ export async function updateCurrentUserProfileAction(formData: FormData) {
     return { success: false, message: error.message || "Gagal memperbarui profil." };
   }
 }
-
-// Admin User Management Actions
 
 export async function getUsersWithBidangAction(filterRole?: string) {
   if (!(await isCurrentUserAdmin())) {
@@ -377,11 +365,10 @@ export async function adminCreateUserAction(formData: FormData) {
   }
 
   try {
-    // 1. Create user in auth.users
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Auto-confirm email for admin-created users
+      email_confirm: true,
     });
 
     if (authError) throw authError;
@@ -402,7 +389,6 @@ export async function adminCreateUserAction(formData: FormData) {
     });
 
     if (publicUserError) {
-      // Attempt to clean up the auth user if public.users insert fails
       await supabase.auth.admin.deleteUser(userId);
       throw publicUserError;
     }
@@ -415,12 +401,11 @@ export async function adminCreateUserAction(formData: FormData) {
 }
 
 export async function adminUpdateUserAction(userId: string, formData: FormData) {
-  // Check admin permission first
   if (!(await isCurrentUserAdmin())) {
     return { success: false, message: "Access denied. Admin role required." };
   }
 
-  const supabase = createAdminClient(); // Use service role instead
+  const supabase = createAdminClient();
   console.log(`[adminUpdateUserAction] Attempting to update user ID: ${userId}`);
   
   // Log semua data dari FormData
@@ -454,7 +439,6 @@ export async function adminUpdateUserAction(userId: string, formData: FormData) 
   console.log(`[adminUpdateUserAction] Parsed id_bidang_fkey: ${id_bidang_fkey}`);
 
   try {
-    // 1. Update public.users details
     console.log("[adminUpdateUserAction] Attempting to update public.users table...");
     const { error: publicUserError } = await supabase
       .from("users")
@@ -475,9 +459,8 @@ export async function adminUpdateUserAction(userId: string, formData: FormData) 
     }
     console.log("[adminUpdateUserAction] Successfully updated public.users table.");
 
-    // 2. Update auth.user if email or password changed
     const authUpdatePayload: { email?: string; password?: string } = {};
-    if (email) authUpdatePayload.email = email; // Assuming email can be changed
+    if (email) authUpdatePayload.email = email;
     if (newPassword) authUpdatePayload.password = newPassword;
 
     if (Object.keys(authUpdatePayload).length > 0) {
@@ -508,7 +491,7 @@ export async function adminDeleteUserAction(userId: string) {
   const supabase = createAdminClient();
   try {
     const { error } = await supabase.auth.admin.deleteUser(userId);
-    if (error) throw error; // Cascade delete should handle public.users row
+    if (error) throw error;
     return { success: true, message: "Pengguna berhasil dihapus." };
   } catch (error: any) {
     console.error("Error deleting user:", error);

@@ -5,12 +5,12 @@ import { createClient } from "@/utils/supabase/client";
 import { getCurrentUserProfile, updateCurrentUserProfileAction } from "@/app/actions";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { UserProfile, Jabatan, UserRole } from "./types"; // Menggunakan tipe dari file lokal
+import { UserProfile, Jabatan, UserRole } from "./types";
 import { Eye, EyeOff } from "lucide-react";
 
 const initialFormData = {
     nama: "",
-    email: "", // Email tidak bisa diubah oleh pengguna
+    email: "",
     nip: "",
     pangkat: "",
     newPassword: "",
@@ -31,14 +31,13 @@ export default function SettingsPage() {
         setError(null);
         const result = await getCurrentUserProfile();
         if (result.success && result.data) {
-            // Handle potential array for daftar_bidang and ensure enum types
-            const rawData = result.data as any; // Use 'any' for intermediate transformation
+            const rawData = result.data as any; 
             
             const transformedDaftarBidang = 
                 rawData.daftar_bidang && Array.isArray(rawData.daftar_bidang) && rawData.daftar_bidang.length > 0
-                ? rawData.daftar_bidang[0] // Take the first object from the array
+                ? rawData.daftar_bidang[0]
                 : rawData.daftar_bidang && !Array.isArray(rawData.daftar_bidang) 
-                    ? rawData.daftar_bidang // If it's already an object (robustness)
+                    ? rawData.daftar_bidang 
                     : null;
 
             const profile: UserProfile = {
@@ -87,7 +86,6 @@ export default function SettingsPage() {
         if (formData.nip) payload.append("nip", formData.nip);
         if (formData.pangkat) payload.append("pangkat", formData.pangkat);
 
-        // Logika untuk update password (jika diimplementasikan di action terpisah atau di sini)
         if (formData.newPassword) {
             if (formData.newPassword !== formData.confirmNewPassword) {
                 toast.error("Password baru dan konfirmasi password tidak cocok.");
@@ -117,8 +115,8 @@ export default function SettingsPage() {
 
         if (result.success) {
             toast.success(result.message);
-            fetchProfile(); // Refresh data profil
-            setFormData(prev => ({ ...prev, newPassword: "", confirmNewPassword: "" })); // Reset password fields
+            fetchProfile();
+            setFormData(prev => ({ ...prev, newPassword: "", confirmNewPassword: "" }));
         } else {
             toast.error(result.message || "Gagal memperbarui profil.");
         }

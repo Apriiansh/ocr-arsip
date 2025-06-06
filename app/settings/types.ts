@@ -14,7 +14,6 @@ export enum Jabatan {
     KEPALA_BIDANG = "Kepala Bidang",
     SEKRETARIS = "Sekretaris",
     KEPALA_DINAS = "Kepala Dinas",
-    // Tambahkan jabatan lain jika ada
 }
 
 export interface UserProfile {
@@ -26,7 +25,7 @@ export interface UserProfile {
     jabatan: Jabatan;
     role: UserRole;
     id_bidang_fkey: number;
-    daftar_bidang?: { // Mengubah ini menjadi objek
+    daftar_bidang?: {
         nama_bidang: string;
     } | null;
 }

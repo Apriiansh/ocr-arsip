@@ -71,8 +71,6 @@ export default function PemindahanArsip() {
 		}
 	});
 
-	console.log("[PEMINDAHAN LOG] Initial approvalStatus:", approvalStatus);
-
 	// Tambahkan state untuk process status
 	const [processStatus, setProcessStatus] = useState<ProcessStatus>({ status: 'idle' });
 

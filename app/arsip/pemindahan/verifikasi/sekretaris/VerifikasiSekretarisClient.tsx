@@ -393,19 +393,7 @@ export default function VerifikasiSekretarisClient() {
   };
 
   if (loading) {
-    return (
-      // Consistent loading skeleton wrapper
-      <div className="w-full h-full p-6">
-        <div className="max-w-7xl mx-auto w-full h-full flex flex-col">
-          <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col">
-            {/* TODO: Add a more detailed skeleton here if needed, or keep simple spinner for now */}
-            <div className="flex-grow flex justify-center items-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (

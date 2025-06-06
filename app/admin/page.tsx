@@ -128,13 +128,8 @@ export default function AdminHome() {
     }, [fetchStatistics]);
 
     if (loading) {
-        return (
-            <div className="bg-background w-full flex-grow flex flex-col"> {/* Konsisten dengan flex-grow, hapus p-6 dari sini */}
-                <div className="max-w-screen-2xl mx-auto w-full flex-grow flex flex-col items-center justify-center p-6"> {/* Tambahkan p-6 di sini */}
-                    <LoadingSkeleton />
-                </div>
-            </div>
-        );
+        // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
+        return null;
     }
 
     if (error) {

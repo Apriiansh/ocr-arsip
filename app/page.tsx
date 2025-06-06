@@ -10,11 +10,11 @@ import { markNotificationAsRead } from "@/utils/notificationService";
 
 // Definisikan konstanta untuk path agar mudah dikelola
 const ROLE_PATHS: Record<string, string> = {
-  "Admin": "/admin/",
-  "Kepala_Bidang": "/unit-pengolah/",
-  "Sekretaris": "/unit-kearsipan/",
-  "Pegawai": "/user/",
-  "Kepala_Dinas": "/kepala-dinas/",
+  "Admin": "/admin",
+  "Kepala_Bidang": "/unit-pengolah",
+  "Sekretaris": "/unit-kearsipan",
+  "Pegawai": "/user",
+  "Kepala_Dinas": "/kepala-dinas",
 };
 const DEFAULT_USER_PATH = "/user/";
 const SIGN_IN_PATH = "/sign-in";
@@ -46,12 +46,11 @@ export default function Home() {
     console.log("HomeRedirect: checkSessionAndRedirect started");
 
     try {
-      // PERBAIKAN: Tunggu sebentar untuk memastikan session sudah ter-load
+      
       await new Promise(resolve => setTimeout(resolve, 100));
 
       console.log("HomeRedirect: 1. Attempting to get user session...");
 
-      // PERBAIKAN: Gunakan getSession() terlebih dahulu, lalu getUser()
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       console.log("HomeRedirect: 1.1. getSession result", { hasSession: !!session, sessionError });
 

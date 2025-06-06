@@ -8,12 +8,12 @@ import {
     adminUpdateUserAction,
     adminDeleteUserAction,
 } from "@/app/actions";
-import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import { Modal } from "@/components/Modal"; 
 import { FaEdit, FaTrash, FaFilter } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { UserRole, Jabatan, DaftarBidang, UserProfile } from "./types";
+import { ManageUserSkeleton } from "./components/ManageUserSkeleton"; // Import skeleton baru
 
 const initialFormData = {
     nama: "",
@@ -155,12 +155,8 @@ export default function ManageUsersPage() {
     };
 
     if (loading && users.length === 0 && daftarBidang.length === 0) { // Show skeleton only on initial full load
-        console.log("[Render] Displaying initial loading skeleton.");
-        return (
-            <div className="bg-background p-8 w-full">
-                <div className="max-w-7xl mx-auto"><LoadingSkeleton /></div>
-            </div>
-        );
+        // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
+        return <ManageUserSkeleton />; // Atau null jika loading.tsx sudah cukup
     }
 
     // console.log("[Render] Page rendering. Loading:", loading, "Users count:", users.length, "Error:", error);
