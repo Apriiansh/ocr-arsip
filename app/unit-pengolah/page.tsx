@@ -292,24 +292,7 @@ export default function KepalaBidangHome() {
             await fetchDashboardData(bidangId);
         }
     };
-
-    if (error) {
-        return (
-            <div className="bg-background flex flex-col items-center justify-center p-6 w-full h-full">
-                <div className="text-center">
-                    <h2 className="text-2xl font-bold text-foreground mb-4">Terjadi Kesalahan</h2>
-                    <p className="text-muted-foreground mb-6">{error}</p>
-                    <button
-                        onClick={handleRefresh}
-                        className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
-                    >
-                        Coba Lagi
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
+    
     return (
         <div className="bg-background p-6 w-full h-full">
             <div className="max-w-screen-2xl mx-auto w-full h-full space-y-8">
