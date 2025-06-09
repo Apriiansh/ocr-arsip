@@ -15,8 +15,8 @@ interface FormDataState {
   file_url: string | null;
   kode_klasifikasi: string;
   uraian_informasi: string;
-  tanggal_penciptaan_mulai: string; // BARU: Untuk kurun waktu penciptaan
-  tanggal_penciptaan_berakhir: string; // BARU: Untuk kurun waktu penciptaan
+  tanggal_penciptaan_mulai: string; 
+  tanggal_penciptaan_berakhir: string; 
   tanggal_mulai: string;
   tanggal_berakhir: string;
   masa_retensi: string;
@@ -36,6 +36,15 @@ interface CalculatedLocationState {
   no_filing_cabinet: string;
   no_laci: string;
   no_folder: string;
+}
+
+const SUPABASE_QUERY_TIMEOUT_MS = 15000; // 15 detik timeout untuk query Supabase
+
+class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TimeoutError";
+  }
 }
 
 interface KlasifikasiItem {
@@ -91,6 +100,32 @@ export function useArsipAktifForm() {
     no_laci: "",
     no_folder: "",
   });
+
+  const resetFormForNewEntry = () => {
+    setFormData({
+      nomor_berkas: 0, // Akan diupdate oleh useEffect yang menyinkronkan dengan state nomorBerkas
+      file_url: null,
+      kode_klasifikasi: "",
+      uraian_informasi: "",
+      tanggal_penciptaan_mulai: "",
+      tanggal_penciptaan_berakhir: "",
+      tanggal_mulai: "",
+      tanggal_berakhir: "",
+      masa_retensi: "",
+      kurun_waktu: "",
+      jangka_simpan: "",
+      jumlah: "",
+      keterangan: "",
+      tingkat_perkembangan: "",
+      media_simpan: "",
+    });
+    setPdfFile(null);
+    setPdfPreviewUrl(null);
+    setSelectedKodeDasar("");
+    setKodeTambahan("");
+    setKodeKlasifikasiMode('manual'); // Kembali ke mode default
+    // calculatedLocation akan dihitung ulang oleh useEffect-nya sendiri
+  };
 
   // Helper function to parse "DD-MM-YYYY s.d. DD-MM-YYYY" or "DD-MM-YYYY" into start and end dates
   const parseDateRangeString = (dateStr: string | null | undefined): { startDate: string | null, endDate: string | null } => {
@@ -228,15 +263,31 @@ export function useArsipAktifForm() {
         return;
       }
 
-      const { data: klasifikasiData, error: klasifikasiError } = await supabase
-        .from("klasifikasi_arsip")
-        .select("kode_klasifikasi, label");
-      if (klasifikasiError) {
-        toast.error("Gagal memuat daftar klasifikasi.");
-      } else {
-        setKlasifikasiList(klasifikasiData || []);
-      }
+      try {
+        console.log("[AuthDebug] Fetching klasifikasi list...");
+        const klasifikasiPromise = supabase
+          .from("klasifikasi_arsip")
+          .select("kode_klasifikasi, label");
 
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new TimeoutError(`Pengambilan daftar klasifikasi melebihi batas waktu ${SUPABASE_QUERY_TIMEOUT_MS}ms.`)), SUPABASE_QUERY_TIMEOUT_MS)
+        );
+
+        const result = await Promise.race([klasifikasiPromise, timeoutPromise]) as { data: KlasifikasiItem[] | null; error: any; };
+        
+        if (result.error) {
+          console.error("[AuthDebug] Error fetching klasifikasi list:", result.error);
+          toast.error(`Gagal memuat daftar klasifikasi: ${result.error.message}`);
+          setKlasifikasiList([]);
+        } else {
+          setKlasifikasiList(result.data || []);
+          console.log("[AuthDebug] Klasifikasi list fetched successfully.");
+        }
+      } catch (error) { // Catch for timeout specifically if it's not caught as result.error
+        console.error("[AuthDebug] Exception during klasifikasi list fetch (likely timeout):", error);
+        toast.error(`Gagal memuat daftar klasifikasi: ${(error as Error).message}`);
+        setKlasifikasiList([]);
+      }
       if (editId) {
         await loadArchiveDataForEdit(editId);
       }
@@ -249,9 +300,11 @@ export function useArsipAktifForm() {
 
   useEffect(() => {
     const fetchNextNomorBerkasForBidang = async () => {
-      console.log("[NomorBerkasDebug] Triggered. userIdBidang:", userIdBidang, "editId:", editId);
-      if (!userIdBidang || editId) {
-        console.log("[NomorBerkasDebug] Exiting early due to !userIdBidang or editId.");
+      console.log("[NomorBerkasDebug] Triggered. authLoading:", authLoading, "userIdBidang:", userIdBidang, "editId:", editId);
+      if (authLoading || !userIdBidang || editId) {
+        console.log("[NomorBerkasDebug] Exiting early due to authLoading, !userIdBidang, or editId.");
+        // Jika masih loading auth dan bukan mode edit, pastikan nomorBerkas direset ke 0 jika belum.
+        if (authLoading && !editId && nomorBerkas !== 0) setNomorBerkas(0);
         return;
       }
       try {
@@ -261,7 +314,7 @@ export function useArsipAktifForm() {
           .select('id_arsip_aktif_fkey');
         if (pemindahanError) {
           toast.error("Gagal memuat data link pemindahan: " + pemindahanError.message);
-          setNomorBerkas(1);
+          if (!editId) setNomorBerkas(1); // Default ke 1 hanya jika bukan mode edit
           return;
         }
         const idsToExclude = pemindahanLinks?.map(link => link.id_arsip_aktif_fkey).filter(id => id != null) || [];
@@ -286,20 +339,20 @@ export function useArsipAktifForm() {
         if (error && error.code !== 'PGRST116') {
           console.error(`[NomorBerkasDebug] Error fetching highest nomor_berkas (and not PGRST116) for bidang ${userIdBidang}:`, error);
           toast.error("Gagal mengambil nomor berkas berikutnya.");
-          setNomorBerkas(1);
+          if (!editId) setNomorBerkas(1);
           return;
         }
     
         const lastNomorBerkas = data?.nomor_berkas || 0;
-        setNomorBerkas(lastNomorBerkas + 1);
+        if (!editId) setNomorBerkas(lastNomorBerkas + 1); // Hanya set untuk entri baru
       } catch (e) {
         console.error("[NomorBerkasDebug] Exception in fetchNextNomorBerkasForBidang:", e);
         toast.error("Terjadi kesalahan saat mengambil nomor berkas berikutnya.");
-        setNomorBerkas(1);
+        if (!editId) setNomorBerkas(1);
       }
     };
     fetchNextNomorBerkasForBidang();
-  }, [userIdBidang, supabase, editId]);
+  }, [authLoading, userIdBidang, supabase, editId, nomorBerkas]); // Tambahkan authLoading dan nomorBerkas
 
   // Sinkronkan nomorBerkas otomatis dari hook ke formData.nomor_berkas HANYA jika bukan mode edit
   // dan formData.nomor_berkas belum diisi (atau belum diubah manual oleh pengguna)
@@ -509,8 +562,12 @@ export function useArsipAktifForm() {
 
   useEffect(() => {
     const determineLocation = async () => {
-      if (!userNamaBidang) {
-        setCalculatedLocation({ no_filing_cabinet: "", no_laci: "", no_folder: "" });
+      console.log("[LocationDebug] Triggered. authLoading:", authLoading, "userNamaBidang:", userNamaBidang);
+      if (authLoading || !userNamaBidang) {
+        // Hanya set jika nilai berbeda untuk menghindari loop render yang tidak perlu
+        if (calculatedLocation.no_filing_cabinet !== "" || calculatedLocation.no_laci !== "" || calculatedLocation.no_folder !== "") {
+          setCalculatedLocation({ no_filing_cabinet: "", no_laci: "", no_folder: "" });
+        }
         return;
       }
       const cabinetPrefix = BIDANG_CABINET_MAP[userNamaBidang];
@@ -557,41 +614,70 @@ export function useArsipAktifForm() {
         // Tentukan laci ke berapa (1-4)
         noLaci = (Math.floor(jumlahArsip / LACI_CAPACITY) + 1).toString();
         if (parseInt(noLaci) > 4) noLaci = "4";
+        
+        // Tentukan nomor folder berdasarkan urutan kode klasifikasi utama di laci yang sama
+        if (kodeKlasifikasiFinal) { // kodeKlasifikasiFinal adalah kode utama dari arsip saat ini
+          let arsipInLaciQuery = supabase
+            .from("arsip_aktif")
+            .select("id_arsip_aktif, kode_klasifikasi, lokasi_penyimpanan!inner(id_lokasi, no_laci, id_bidang_fkey)")
+            .eq("lokasi_penyimpanan.id_bidang_fkey", userIdBidang)
+            .eq("lokasi_penyimpanan.no_laci", noLaci);
 
-        // Tentukan nomor folder (urut berdasarkan kode klasifikasi di bidang & laci tsb)
-        // Ambil semua folder unik di bidang & laci tsb, urutkan, lalu cari index folder saat ini
-        let folderQuery = supabase
-          .from("lokasi_penyimpanan")
-          .select("no_folder")
-          .eq("id_bidang_fkey", userIdBidang)
-          .eq("no_filing_cabinet", cabinetPrefix)
-          .eq("no_laci", noLaci);
+          if (idsToExclude.length > 0) { // idsToExclude dari arsip yang sudah dipindahkan
+            const idsToExcludeString = `(${idsToExclude.join(',')})`;
+            arsipInLaciQuery = arsipInLaciQuery.not('id_arsip_aktif', 'in', idsToExcludeString);
+          }
 
-        const { data: folderList } = await folderQuery;
-        let folderArr: string[] = [];
-        if (folderList) {
-          folderArr = Array.from(new Set(folderList.map(f => f.no_folder))).sort();
+          const { data: arsipInLaciList, error: arsipError } = await arsipInLaciQuery;
+
+          if (arsipError) {
+            console.error("[LocationDebug] Error fetching arsip in laci for folder calculation:", arsipError);
+            // Biarkan noFolder menggunakan default "1" jika terjadi error
+          } else {
+            const allKlasifikasiUtamaInLaci = new Set<string>();
+            if (arsipInLaciList) {
+              arsipInLaciList.forEach(arsip => {
+                // Jika mode edit dan ini adalah arsip yang sedang diedit,
+                // jangan masukkan kode klasifikasi lamanya dari DB jika kode klasifikasi di form (kodeKlasifikasiFinal) berbeda.
+                // kodeKlasifikasiFinal (dari form) akan ditambahkan secara eksplisit di bawah.
+                if (editId && arsip.id_arsip_aktif === editId) {
+                  // Lewati, akan diurus oleh penambahan kodeKlasifikasiFinal
+                } else {
+                  allKlasifikasiUtamaInLaci.add(arsip.kode_klasifikasi.split('/')[0].trim());
+                }
+              });
+            }
+            
+            // Tambahkan kode klasifikasi utama dari form saat ini.
+            // Ini menangani entri baru, atau entri yang diedit (menggunakan nilai kode terbaru dari form).
+            allKlasifikasiUtamaInLaci.add(kodeKlasifikasiFinal);
+
+            if (allKlasifikasiUtamaInLaci.size > 0) {
+              const sortedKlasifikasiUtama = Array.from(allKlasifikasiUtamaInLaci).sort();
+              const folderIndex = sortedKlasifikasiUtama.indexOf(kodeKlasifikasiFinal);
+              if (folderIndex !== -1) {
+                noFolder = (folderIndex + 1).toString();
+              }
+            }
+          }
         }
-        // Jika folder sudah ada, cari urutan, jika belum, urutan berikutnya
-        let folderIdx = folderArr.findIndex(f => f === kodeKlasifikasiFinal);
-        if (folderIdx === -1) {
-          folderArr.push(kodeKlasifikasiFinal);
-          folderArr = folderArr.sort();
-          folderIdx = folderArr.findIndex(f => f === kodeKlasifikasiFinal);
-        }
-        noFolder = (folderIdx + 1).toString();
       }
 
-      setCalculatedLocation({
-        no_filing_cabinet: cabinetPrefix,
-        no_laci: noLaci,
-        no_folder: noFolder,
-      });
+      if (
+        calculatedLocation.no_filing_cabinet !== cabinetPrefix ||
+        calculatedLocation.no_laci !== noLaci ||
+        calculatedLocation.no_folder !== noFolder
+      ) {
+        setCalculatedLocation({
+          no_filing_cabinet: cabinetPrefix,
+          no_laci: noLaci,
+          no_folder: noFolder,
+        });
+      }
     };
-
     determineLocation();
     // depend on userNamaBidang, selectedKodeDasar, kodeKlasifikasiMode, formData.kode_klasifikasi, userIdBidang, supabase
-  }, [userNamaBidang, selectedKodeDasar, kodeKlasifikasiMode, formData.kode_klasifikasi, userIdBidang, supabase]);
+  }, [authLoading, userNamaBidang, selectedKodeDasar, kodeKlasifikasiMode, formData.kode_klasifikasi, userIdBidang, supabase, calculatedLocation.no_filing_cabinet, calculatedLocation.no_laci, calculatedLocation.no_folder]); // Tambahkan authLoading dan bagian dari calculatedLocation
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -767,20 +853,11 @@ const handleExtractPdf = async () => {
           console.error("[SubmitDebug] Error: Kode Klasifikasi Dasar kosong di mode otomatis.");
           return;
         }
-        const { data: klasData, error: klasError } = await supabase
-          .from("klasifikasi_arsip")
-          .select("aktif, inaktif, nasib_akhir")
-          .eq("kode_klasifikasi", selectedKodeDasar)
-          .single();
-        if (klasError || !klasData) {
-          toast.error(`Detail retensi untuk kode dasar ${selectedKodeDasar} tidak ditemukan.`);
-          console.error(`[SubmitDebug] Error: Detail retensi untuk kode dasar '${selectedKodeDasar}' tidak ditemukan. Error:`, klasError);
-          setSubmitting(false);
-          return;
-        }
-        retensiAktif = klasData.aktif?.toString() || formData.masa_retensi; // Prioritaskan dari DB
-        retensiInaktif = klasData.inaktif?.toString() || "0";
-        nasibAkhir = klasData.nasib_akhir || "Permanen";
+        // Karena formData.masa_retensi (untuk retensiAktif) sudah diisi oleh useEffect saat selectedKodeDasar berubah,
+        // kita tidak perlu mengambil ulang di sini untuk mode otomatis jika ingin menghindari timeout.
+        // retensiAktif akan menggunakan nilai dari formData.masa_retensi (lihat inisialisasi variabel retensiAktif di atas).
+        // retensiInaktif dan nasibAkhir akan menggunakan nilai default yang sudah diinisialisasi ("0" dan "Permanen").
+        console.log(`[SubmitDebug] Mode Otomatis. Menggunakan retensi aktif dari form: '${retensiAktif}', Inaktif default: '${retensiInaktif}', Nasib Akhir default: '${nasibAkhir}'.`);
       } else { // Mode Manual
         console.log(`[SubmitDebug] Mode Manual. Mencari retensi untuk kode: '${kodeLengkap}'`);
         // Jika mode manual, kodeLengkap adalah input pengguna.
@@ -985,8 +1062,10 @@ const handleExtractPdf = async () => {
             .eq('user_id', currentUserId); // Gunakan currentUserId
           toast.success(`Arsip dengan nomor berkas ${arsipDataToSave.nomor_berkas} berhasil disimpan!`);
           console.log(`[SubmitDebug] Arsip baru berhasil disimpan dengan nomor berkas ${arsipDataToSave.nomor_berkas}. Draft dihapus.`);
-          setFormData(prev => ({ ...prev, nomor_berkas: 0 }));
-          setNomorBerkas(prev => prev + 1);
+          
+          setNomorBerkas(prev => prev + 1); // Siapkan nomor berkas untuk entri berikutnya
+          resetFormForNewEntry(); // Bersihkan form
+
           const arsipId = insertedData?.id_arsip_aktif;
           if (arsipId) {
             console.log(`[SubmitDebug] Mencoba mengirim notifikasi untuk arsip ID: ${arsipId}`);
@@ -994,7 +1073,7 @@ const handleExtractPdf = async () => {
               await sendDepartmentHeadNotification(
                 userIdBidang,
                 "Permintaan Persetujuan Arsip Baru",
-                `Arsip baru dengan kode klasifikasi ${formData.kode_klasifikasi} telah ditambahkan dan menunggu persetujuan.`,
+                `Arsip baru dengan kode klasifikasi ${kodeLengkap} telah ditambahkan dan menunggu persetujuan.`,
                 "/unit-pengolah/verifikasi-arsip",
                 "verifikasi arsip aktif",
               );
@@ -1003,7 +1082,7 @@ const handleExtractPdf = async () => {
               console.warn("[SubmitDebug] Warning: Notifikasi gagal dikirim. Error:", notifError);
             }
           }
-          router.push("/arsip/arsip-aktif/daftar-aktif");
+          // router.push("/arsip/arsip-aktif/daftar-aktif"); // Dihapus agar tetap di halaman form
         }
       }
     } catch (error) {
@@ -1011,7 +1090,7 @@ const handleExtractPdf = async () => {
       console.error("[SubmitDebug] Exception di blok try-catch utama handleSubmit:", error);
     } finally {
       setSubmitting(false);
-      console.log("[SubmitDebug] Proses handleSubmit selesai.");
+      console.log("[SubmitDebug] FINALLY block. Proses handleSubmit selesai. Submitting diatur ke false.");
     }
   };
 
@@ -1023,6 +1102,9 @@ const handleExtractPdf = async () => {
   useEffect(() => {
     if (!currentUserId) return; // Gunakan currentUserId sebagai kondisi
     const saveDraft = debounce(async () => {
+      // Jangan simpan draft jika dalam mode edit untuk mencegah data asli tertimpa oleh editan parsial sebagai draft
+      if (editId) return;
+
       await supabase
         .from('draft_input_arsip')
         .upsert({
@@ -1033,14 +1115,15 @@ const handleExtractPdf = async () => {
           onConflict: 'user_id' // Explicitly define the conflict target
         }
       );
+      console.log("[DraftDebug] Draft saved for user:", currentUserId, "Data:", formData);
     }, 5000);
     saveDraft();
     return () => saveDraft.cancel();
-  }, [formData, currentUserId, supabase]); // Tambahkan currentUserId ke dependencies
+  }, [formData, currentUserId, supabase, editId]); // Tambahkan currentUserId dan editId ke dependencies
 
   useEffect(() => {
     const loadDraft = async () => {
-      if (!currentUserId) return; // Hapus '|| editId' jika ingin draft load juga saat edit
+      if (!currentUserId || editId) return; // Jangan load draft jika dalam mode edit
       const { data, error } = await supabase
         .from('draft_input_arsip')
         .select('data')
@@ -1052,7 +1135,7 @@ const handleExtractPdf = async () => {
       }
     };
     loadDraft();
-  }, [currentUserId, editId, supabase]); // Tambahkan currentUserId ke dependencies
+  }, [currentUserId, editId, supabase]);
 
   return {
     editId,

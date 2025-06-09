@@ -1,6 +1,6 @@
 "use client";
 import { FileText, FolderOpen, Save, ScanSearch, RefreshCcw } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime"; // Untuk tipe router
 
 interface FormDataState {
@@ -82,6 +82,31 @@ export default function ArsipAktifFormUI({
   // State untuk menampilkan preview PDF
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   
+  // Debugging useEffect untuk no_folder dan kode klasifikasi terkait
+  useEffect(() => {
+    const currentFullKlasifikasi =
+      kodeKlasifikasiMode === "manual"
+        ? formData.kode_klasifikasi
+        : selectedKodeDasar && kodeTambahan
+        ? `${selectedKodeDasar}${kodeTambahan}`
+        : selectedKodeDasar || kodeTambahan || "";
+
+    console.log(
+      `[DEBUG ArsipAktifFormUI] Perubahan Terdeteksi:
+      --------------------------------------------------
+      - Mode Kode Klasifikasi: ${kodeKlasifikasiMode}
+      - Kode Klasifikasi (input aktual): ${currentFullKlasifikasi}
+      - formData.kode_klasifikasi (manual): ${formData.kode_klasifikasi}
+      - Selected Kode Dasar (otomatis): ${selectedKodeDasar}
+      - Kode Tambahan (otomatis): ${kodeTambahan}
+      - Calculated No. Folder: ${calculatedLocation.no_folder}
+      - Full Calculated Location:`, calculatedLocation,
+      `\n--------------------------------------------------`
+    );
+  }, [
+    formData.kode_klasifikasi, selectedKodeDasar, kodeTambahan, calculatedLocation.no_folder, kodeKlasifikasiMode, calculatedLocation
+  ]);
+
   // Dapatkan nama file PDF yang diupload
   const pdfFileName = pdfFile ? pdfFile.name : "Tidak ada file dipilih";
 
@@ -342,12 +367,7 @@ export default function ArsipAktifFormUI({
 
               <div>
                 <label className="block text-foreground font-medium mb-2">Tingkat Perkembangan</label>
-                <select name="tingkat_perkembangan" value={formData.tingkat_perkembangan} onChange={handleChange} className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring bg-input text-foreground placeholder-muted-foreground" required disabled={submitting}>
-                  <option value="">Pilih Tingkat Perkembangan</option>
-                  <option value="Asli">Asli</option>
-                  <option value="Copy">Copy</option>
-                  <option value="Asli/Copy">Asli/Copy</option>
-                </select>
+                <input name="tingkat_perkembangan" value={formData.tingkat_perkembangan} onChange={handleChange} className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring bg-input text-foreground placeholder-muted-foreground" required disabled={submitting} />
               </div>
 
               <div>

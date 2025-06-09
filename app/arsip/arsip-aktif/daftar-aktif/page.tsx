@@ -153,8 +153,8 @@ export default function DaftarArsipAktif() {
     setArsipList([]);
     setTotalPages(0);
   }
-  finally {
-    setLoading(false); // Pastikan setLoading(false) selalu dipanggil
+ finally {
+    setLoading(false); 
   }
 }, [currentPage, itemsPerPage, supabase, userBidangId, sortConfig, statusFilterAktif]);
 

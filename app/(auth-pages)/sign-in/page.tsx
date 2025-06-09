@@ -1,24 +1,36 @@
-// Alternatif: Gunakan server action dengan benar
 "use client";
 
 import Link from "next/link";
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react"; 
-import { signInAction } from "@/app/actions"; // Import server action
+import { Eye, EyeOff } from "lucide-react";
+import { signInAction } from "@/app/actions";
+import { useRouter } from "next/navigation";
 
 export default function SignIn() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
   const handleSignIn = async (formData: FormData) => {
     setError("");
     setIsLoading(true);
-    
+
     try {
       const result = await signInAction(formData);
+
+      if (result.success) {
+        if (result.redirectTo) {
+          router.push(result.redirectTo);
+        } else {
+          router.push("/");
+        }
+      } else {
+        setError(result.error || "Login gagal");
+      }
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      console.error("Sign in error:", err);
+      setError("Terjadi kesalahan saat login");
     } finally {
       setIsLoading(false);
     }
@@ -30,10 +42,11 @@ export default function SignIn() {
         Sign In
       </h2>
       {error && (
-        <p className="text-destructive mb-4 text-center text-sm">{error}</p>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+          <p className="text-sm text-center">{error}</p>
+        </div>
       )}
-      
-      {/* Gunakan server action */}
+
       <form action={handleSignIn} className="space-y-4 md:space-y-6">
         <div>
           <label className="block text-sm font-medium text-foreground mb-2">
@@ -73,10 +86,10 @@ export default function SignIn() {
           className="w-full btn-neon"
           disabled={isLoading}
         >
-          {isLoading ? "Signing In..." : "Sign In"}
+          {isLoading ? "Signing In..." : "Masuk"}
         </button>
       </form>
-      
+
       <p className="mt-6 md:mt-8 text-center text-sm text-muted-foreground">
         Belum punya akun?{" "}
         <Link

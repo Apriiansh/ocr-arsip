@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react"; // Added Suspense
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
 import { signUpAction } from "@/app/actions";
-import { useSearchParams } from "next/navigation";
-import { toast } from "react-toastify";
 import Link from "next/link";
 
 enum UserRole {
@@ -45,39 +43,61 @@ function SignUpForm() {
   const [jabatan, setJabatan] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const urlType = searchParams.get("type");
-  const urlMessage = searchParams.get("message");
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+    setSuccess("");
+    setIsLoading(true);
 
     if (idBidang === "") {
-      toast.error("Silakan pilih bidang.");
+      setError("Silakan pilih bidang.");
+      setIsLoading(false);
       return;
     }
     if (!jabatan) {
-      toast.error("Silakan pilih jabatan.");
+      setError("Silakan pilih jabatan.");
+      setIsLoading(false);
       return;
     }
 
-    const formData = new FormData();
-    formData.append("email", email);
-    formData.append("password", password);
-    formData.append("nama", nama);
-    formData.append("nip", nip);
-    formData.append("pangkat", pangkat);
-    formData.append("idBidang", idBidang.toString());
-    formData.append("jabatan", jabatan);
+    try {
+      const formData = new FormData();
+      formData.append("email", email);
+      formData.append("password", password);
+      formData.append("nama", nama);
+      formData.append("nip", nip);
+      formData.append("pangkat", pangkat);
+      formData.append("idBidang", idBidang.toString());
+      formData.append("jabatan", jabatan);
 
-    const result = await signUpAction(formData) as { type: string; message?: string };
-    if (result?.type === "error") {
-      toast.error(result.message || "Gagal sign up");
-      return;
+      const result = await signUpAction(formData) as { type: string; message?: string };
+
+      if (result?.type === "error") {
+        setError(result.message || "Gagal sign up");
+      } else if (result?.type === "success") {
+        setSuccess(result.message || "Sign up berhasil! Silakan cek email Anda untuk verifikasi.");
+        // Clear form
+        setNama("");
+        setEmail("");
+        setPassword("");
+        setNip("");
+        setPangkat("");
+        setIdBidang("");
+        setJabatan("");
+        // Redirect after showing success message
+        setTimeout(() => {
+          router.push("/sign-in");
+        }, 3000);
+      }
+    } catch (err: any) {
+      console.error("Sign up error:", err);
+      setError("Terjadi kesalahan saat mendaftar");
+    } finally {
+      setIsLoading(false);
     }
-    toast.success("Sign up berhasil!");
-    setTimeout(() => router.push("/sign-in"), 2000);
   };
 
   // Semua jabatan yang diizinkan
@@ -110,33 +130,27 @@ function SignUpForm() {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-4 md:p-8">
       <div className="card-neon w-full max-w-3xl p-6 md:p-10">
-        <form onSubmit={handleSignUp} className="space-y-6"> {/* Moved form tag to wrap everything */}
+        <form onSubmit={handleSignUp} className="space-y-6">
           <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-6 text-center">
             Sign Up
           </h2>
-          {/* Tampilkan pesan dari URL jika ada */}
-          {urlType === "error" && urlMessage && (
-            <div className="mb-4 text-center">
-              <div className="inline-block bg-destructive/10 text-destructive px-4 py-2 rounded-md">{urlMessage}</div>
-            </div>
-          )}
-          {urlType === "success" && urlMessage && (
-            <div className="mb-4 text-center">
-              <div className="inline-block bg-[hsl(var(--neon-green))]/10 text-[hsl(var(--neon-green))] px-4 py-2 rounded-md">{urlMessage}</div>
-            </div>
-          )}
+
+          {/* Error Messages */}
           {error && (
-            <div className="mb-4 text-center">
-              <div className="inline-block bg-destructive/10 text-destructive px-4 py-2 rounded-md">{error}</div>
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+              <p className="text-sm text-center">{error}</p>
             </div>
           )}
+
+          {/* Success Messages */}
           {success && (
-            <div className="mb-4 text-center">
-              <div className="inline-block bg-[hsl(var(--neon-green))]/10 text-[hsl(var(--neon-green))] px-4 py-2 rounded-md">{success}</div>
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
+              <p className="text-sm text-center">{success}</p>
             </div>
           )}
+
           {/* Card Email & Password */}
-          <div className="bg-muted/50 dark:bg-muted/20 rounded-lg p-6 shadow-sm border border-border/50"> {/* Adjusted inner card style */}
+          <div className="bg-muted/50 dark:bg-muted/20 rounded-lg p-6 shadow-sm border border-border/50">
             {/* Email */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-foreground mb-2">
@@ -148,6 +162,7 @@ function SignUpForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground transition-colors duration-300"
                 required
+                disabled={isLoading}
               />
             </div>
             {/* Password */}
@@ -162,6 +177,7 @@ function SignUpForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground pr-10 transition-colors duration-300"
                   required
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
@@ -169,12 +185,14 @@ function SignUpForm() {
                   className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   tabIndex={-1}
+                  disabled={isLoading}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
             </div>
           </div>
+
           {/* NIP full width, di luar card */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">
@@ -186,10 +204,12 @@ function SignUpForm() {
               onChange={(e) => setNip(e.target.value)}
               className="w-full px-4 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground transition-colors duration-300"
               required
+              disabled={isLoading}
             />
           </div>
+
           {/* Form Data Lainnya */}
-          <div className="flex flex-col md:flex-row gap-6"> {/* Changed form to div as it's now nested */}
+          <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-1 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
@@ -201,6 +221,7 @@ function SignUpForm() {
                   onChange={(e) => setNama(e.target.value)}
                   className="w-full px-4 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground transition-colors duration-300"
                   required
+                  disabled={isLoading}
                 />
               </div>
               <div>
@@ -213,6 +234,7 @@ function SignUpForm() {
                   onChange={(e) => setPangkat(e.target.value)}
                   className="w-full px-4 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground transition-colors duration-300"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -226,6 +248,7 @@ function SignUpForm() {
                   onChange={(e) => setIdBidang(e.target.value ? parseInt(e.target.value) : "")}
                   className="w-full px-4 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground transition-colors duration-300"
                   required
+                  disabled={isLoading}
                 >
                   <option value="">Pilih Bidang</option>
                   {daftarBidangList.map((item) => (
@@ -244,6 +267,7 @@ function SignUpForm() {
                   onChange={(e) => setJabatan(e.target.value)}
                   className="w-full px-4 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground transition-colors duration-300"
                   required
+                  disabled={isLoading}
                 >
                   <option value="">Pilih Jabatan</option>
                   {jabatanList.map((item) => (
@@ -255,12 +279,15 @@ function SignUpForm() {
               </div>
             </div>
           </div>
+
           <button
             type="submit"
-            className="w-full btn-neon" // onClick removed, type="submit" handles form submission
+            className="w-full btn-neon"
+            disabled={isLoading}
           >
-            Sign Up
+            {isLoading ? "Mendaftar..." : "Daftar"}
           </button>
+
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Sudah punya akun?{" "}
             <Link href="/sign-in"

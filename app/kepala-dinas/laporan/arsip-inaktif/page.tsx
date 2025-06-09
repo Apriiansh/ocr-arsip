@@ -235,8 +235,6 @@ export default function LaporanArsipInaktifKepalaDinas() {
   }, [supabase]);
 
   if (authLoading || loading) {
-    // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
-    // Ini akan berguna untuk re-fetch.
     return null;
   }
 

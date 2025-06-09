@@ -113,8 +113,8 @@ function ActivityChart({ bidangAktivitas }: { bidangAktivitas: BidangAktivitas[]
                                 <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
                                 <XAxis
                                     dataKey="nama_bidang"
-                                    angle={-45}
-                                    textAnchor="end"
+                                    angle={0}
+                                    textAnchor="middle"
                                     height={100}
                                     interval={0}
                                     fontSize={12}

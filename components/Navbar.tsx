@@ -253,18 +253,35 @@ export default function Navbar() {
 
   // Auth functions
   const handleLogout = async () => {
+    if (isLoggingOut) return;
     try {
       closeAllMenusAndDropdowns();
       setIsLoggingOut(true);
-      try {
-        await signOutAction();
-      } catch (error) {
-        console.error("Error during logout:", error);
-      } finally {
-        setIsLoggingOut(false);
+
+      const result = await signOutAction();
+
+      if (result?.success !== false) {
+        // Logout berhasil atau tidak ada error
+        // Clear any client-side state if needed
+        setUser(null);
+        setUserRole(ROLES.PEGAWAI);
+
+        // Redirect ke halaman login
+        router.push("/sign-in");
+        router.refresh(); // Force refresh untuk memastikan state ter-reset
+      } else {
+        // Ada error tapi tetap redirect (karena mungkin session sudah expired)
+        console.error("Logout error:", result.error);
+        router.push("/sign-in");
+        router.refresh();
       }
-    } catch (e) {
-      console.error("Unexpected error during logout:", e);
+    } catch (error: any) {
+      console.error("Unexpected error during logout:", error);
+      // Tetap redirect ke login meskipun ada error
+      router.push("/sign-in");
+      router.refresh();
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -319,7 +336,7 @@ export default function Navbar() {
           
             <Link href="/admin" className={getLinkClass('/admin')}>
               <Home size={ICON_SIZE} />
-              <span>Home</span>
+              <span>Beranda</span>
             </Link>
 
             <Link href="/admin/manage-user" className={getLinkClass('/admin/manage-user')}>
@@ -340,7 +357,7 @@ export default function Navbar() {
 
             <Link href="/unit-pengolah" className={getLinkClass('/unit-pengolah')}>
               <Home size={ICON_SIZE} />
-              <span>Home</span>
+              <span>Beranda</span>
             </Link>
 
             <Link href="/arsip/pemindahan/verifikasi/kepala-bidang" className={getLinkClass('/arsip/pemindahan/verifikasi/kepala-bidang')}>
@@ -356,7 +373,7 @@ export default function Navbar() {
           <>
             <Link href="/kepala-dinas" className={getLinkClass('/kepala-dinas')}>
               <Home size={ICON_SIZE} />
-              <span>Home</span>
+              <span>Beranda</span>
             </Link>
             <div
               className="relative"
@@ -396,7 +413,7 @@ export default function Navbar() {
 
             <Link href="/unit-kearsipan" className={getLinkClass('/unit-kearsipan')}>
               <Home size={ICON_SIZE} />
-              <span>Home</span>
+              <span>Beranda</span>
             </Link>
 
             <Link href="/arsip/pemindahan/verifikasi/sekretaris" className={getLinkClass('/arsip/pemindahan/verifikasi/sekretaris')}>
@@ -485,7 +502,7 @@ export default function Navbar() {
 
             <Link href="/user" className={getLinkClass('/user')}>
               <Home size={ICON_SIZE} />
-              <span>Home</span>
+              <span>Beranda</span>
             </Link>
 
             <div
@@ -544,8 +561,8 @@ export default function Navbar() {
         onClick={closeAllMenusAndDropdowns}
         className={getMobileItemClass('/search')}
       >
-        <Home size={ICON_SIZE} />
-        <span>Search</span>
+        <Home size={ICON_SIZE} /> 
+        <span>Pencarian</span>
       </Link>
     );
 
@@ -560,7 +577,7 @@ export default function Navbar() {
               className={getMobileItemClass('/admin')}
             >
               <Home size={ICON_SIZE} />
-              <span>Home</span>
+              <span>Beranda</span>
             </Link>
 
             <Link
@@ -596,7 +613,7 @@ export default function Navbar() {
               className={getMobileItemClass('/unit-pengolah')}
             >
               <Home size={ICON_SIZE} />
-              <span>Home</span>
+              <span>Beranda</span>
             </Link>
 
             <Link
@@ -632,7 +649,7 @@ export default function Navbar() {
               className={getMobileItemClass('/unit-kearsipan')}
             >
               <Home size={ICON_SIZE} />
-              <span>Home</span>
+              <span>Beranda</span>
             </Link>
 
             <Link
@@ -712,7 +729,7 @@ export default function Navbar() {
               className={getMobileItemClass('/user')}
             >
               <Home size={ICON_SIZE} />
-              <span>Home</span>
+              <span>Beranda</span>
             </Link>
 
             <button
@@ -756,7 +773,7 @@ export default function Navbar() {
 
   return (
     <nav className="bg-primary text-primary-foreground border-b border-border shadow-sm sticky top-0 z-50">
-      <div className="max-w-screen-xl mx-auto flex justify-between items-center px-4 h-16">
+      <div className="max-w-screen-2xl mx-auto flex justify-between items-center px-4 h-16">
         {/* Logo */}
         <Link
           href="/"
@@ -816,17 +833,18 @@ export default function Navbar() {
                       className={isActive('/settings') ? dropdownClasses.activeItem : dropdownClasses.item}
                     >
                       <div className="flex items-center gap-2">
-                        <Settings size={16} />
+                        <Settings size={16} /> 
                         <span>Pengaturan</span>
                       </div>
                     </Link>
                     <button
                       onClick={handleLogout}
-                      className={dropdownClasses.item}
+                      disabled={isLoggingOut}
+                      className={`${dropdownClasses.item} ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <div className="flex items-center gap-2">
                         <LogOut size={16} />
-                        <span>Logout</span>
+                        <span>{isLoggingOut ? "Keluar..." : "Keluar"}</span>
                       </div>
                     </button>
                   </div>
@@ -838,13 +856,13 @@ export default function Navbar() {
                   href="/sign-in"
                   className="flex items-center gap-2 px-3 py-2 rounded-md transition-colors text-primary-foreground hover:bg-primary/10"
                 >
-                  Sign In
+                  Masuk
                 </Link>
                 <Link
                   href="/sign-up"
                   className="flex items-center gap-2 px-3 py-2 rounded-md transition-colors bg-primary-foreground text-primary hover:bg-primary-foreground/90"
                 >
-                  Sign Up
+                  Daftar
                 </Link>
               </div>
             )}
@@ -899,7 +917,7 @@ export default function Navbar() {
                   className={`${mobileClasses.item} ${mobileClasses.inactive}`}
                 >
                   <LogOut size={ICON_SIZE} />
-                  <span>Logout</span>
+                  <span>Keluar</span>
                 </button>
               </>
             ) : (
@@ -909,14 +927,14 @@ export default function Navbar() {
                   onClick={closeAllMenusAndDropdowns}
                   className="w-full px-4 py-2 text-center rounded-md border text-foreground hover:bg-primary/5"
                 >
-                  Sign In
+                  Masuk
                 </Link>
                 <Link
                   href="/sign-up"
                   onClick={closeAllMenusAndDropdowns}
                   className="w-full px-4 py-2 text-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                  Sign Up
+                  Daftar
                 </Link>
               </div>
             )}

@@ -34,17 +34,14 @@ export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
 
   if (!email || !password || !nama || !nip || !pangkat || !idBidang || !jabatan) {
-    return encodedRedirect(
-      "error",
-      "/sign-up",
-      "Semua field wajib diisi",
-    );
+    return {
+      type: "error",
+      message: "Semua field wajib diisi"
+    };
   }
 
   let role = "Pegawai";
-  if (
-    jabatan === "Kepala Bidang"
-  ) {
+  if (jabatan === "Kepala Bidang") {
     role = "Kepala_Bidang";
   } else if (jabatan === "Kepala Dinas") {
     role = "Kepala_Dinas";
@@ -65,10 +62,16 @@ export const signUpAction = async (formData: FormData) => {
       .maybeSingle();
 
     if (checkError) {
-      return encodedRedirect("error", "/sign-up", "Gagal memeriksa jabatan di database");
+      return {
+        type: "error",
+        message: "Gagal memeriksa jabatan di database"
+      };
     }
     if (existing) {
-      return encodedRedirect("error", "/sign-up", `Jabatan ${jabatan} sudah terdaftar di bidang ini`);
+      return {
+        type: "error",
+        message: `Jabatan ${jabatan} sudah terdaftar di bidang ini`
+      };
     }
   }
 
@@ -82,12 +85,18 @@ export const signUpAction = async (formData: FormData) => {
 
   if (error) {
     console.error(error.code + " " + error.message);
-    return encodedRedirect("error", "/sign-up", error.message);
+    return {
+      type: "error",
+      message: error.message
+    };
   }
 
   const userId = data.user?.id;
   if (!userId) {
-    return encodedRedirect("error", "/sign-up", "Gagal mendapatkan User ID");
+    return {
+      type: "error",
+      message: "Gagal mendapatkan User ID"
+    };
   }
 
   const { error: userError } = await supabase.from("users").insert([
@@ -109,14 +118,16 @@ export const signUpAction = async (formData: FormData) => {
       "jabatan:", jabatan, "role:", role, "idBidang:", idBidang,
       "Error:", JSON.stringify(userError, null, 2)
     );
-    return encodedRedirect("error", "/sign-up", userError.message);
+    return {
+      type: "error",
+      message: userError.message
+    };
   }
 
-  return encodedRedirect(
-    "success",
-    "/sign-up",
-    "Thanks for signing up! Please check your email for a verification link.",
-  );
+  return {
+    type: "success",
+    message: "Pendaftaran Berhasil"
+  };
 };
 
 export const signInAction = async (formData: FormData) => {
@@ -130,7 +141,10 @@ export const signInAction = async (formData: FormData) => {
   });
 
   if (error) {
-    return encodedRedirect("error", "/sign-in", error.message);
+    return {
+      success: false,
+      error: error.message
+    };
   }
 
   try {
@@ -145,6 +159,10 @@ export const signInAction = async (formData: FormData) => {
 
       if (userDbError) {
         console.error(`signInAction: Error fetching role for user ${user.id}:`, JSON.stringify(userDbError, null, 2));
+        return {
+          success: false,
+          error: "Gagal mengambil data pengguna"
+        };
       } else if (userData?.role) {
         const ROLE_PATHS: Record<string, string> = {
           "Admin": "/admin",
@@ -155,19 +173,32 @@ export const signInAction = async (formData: FormData) => {
         };
         const redirectPath = ROLE_PATHS[userData.role] || "/user";
         console.log(`signInAction: User ${user.id} has role ${userData.role}. Redirecting to ${redirectPath}.`);
-        return redirect(redirectPath);
+        
+        return {
+          success: true,
+          redirectTo: redirectPath
+        };
       } else {
         console.warn(`signInAction: User ${user.id} found, but role not found in users table or userData is null. userData:`, userData);
+        return {
+          success: false,
+          error: "Role pengguna tidak ditemukan"
+        };
       }
     } else {
       console.warn(`signInAction: supabase.auth.getUser() returned no user immediately after successful signInWithPassword.`);
+      return {
+        success: false,
+        error: "Gagal mendapatkan data pengguna"
+      };
     }
   } catch (roleError) {
     console.error("Error getting user role:", roleError);
+    return {
+      success: false,
+      error: "Terjadi kesalahan saat login"
+    };
   }
-
-  console.log(`signInAction: Falling back to redirect to '/' for user. Email: ${email}`);
-  return redirect("/");
 };
 
 export const forgotPasswordAction = async (formData: FormData) => {
@@ -243,8 +274,18 @@ export const resetPasswordAction = async (formData: FormData) => {
 
 export const signOutAction = async () => {
   const supabase = await createClient();
-  await supabase.auth.signOut();
-  return redirect("/sign-in");
+  const { error } = await supabase.auth.signOut();
+  
+  if (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+  
+  return {
+    success: true
+  };
 };
 
 export async function getCurrentUserProfile() {
