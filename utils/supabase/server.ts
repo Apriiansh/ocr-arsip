@@ -18,9 +18,9 @@ export const createClient = async () => {
               cookieStore.set(name, value, options);
             });
           } catch (error) {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+              if (process.env.NODE_ENV === "development") {
+                console.warn("Supabase cookie set failed in Server Component:", error);
+              }
           }
         },
       },

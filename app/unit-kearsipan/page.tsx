@@ -22,6 +22,11 @@ interface ArsipInaktif {
     tanggal_berakhir: string;
 }
 
+interface StatusPersetujuan {
+    name: string;
+    jumlah: number;
+}
+
 // Stats Cards Component
 function StatsCards({ stats, arsipMendekatiBerakhir }: { stats: Stats, arsipMendekatiBerakhir: ArsipInaktif[] }) {
     const calculateDaysRemaining = (endDate: string) => {
@@ -100,7 +105,7 @@ function StatsCards({ stats, arsipMendekatiBerakhir }: { stats: Stats, arsipMend
 }
 
 // Status Chart Component
-function StatusChart({ data }: { data: any[] }) {
+function StatusChart({ data }: { data: StatusPersetujuan[] }) {
     const CHART_COLORS = {
         "Belum Diproses": "hsl(45, 100%, 60%)",
         "Disetujui": "hsl(142, 72%, 29%)",
@@ -127,7 +132,7 @@ function StatusChart({ data }: { data: any[] }) {
                                     border: '1px solid hsl(var(--border))',
                                     borderRadius: '0.5rem'
                                 }}
-                                formatter={(value, name) => [value, "Jumlah Arsip"]}
+                                formatter={(value) => [value, "Jumlah Arsip"]}
                             />
                             <Legend wrapperStyle={{ fontSize: "14px" }} />
                             <Bar
@@ -263,7 +268,7 @@ function DashboardContent() {
         arsipMendekatiBatasWaktu: 0
     });
 
-    const [statusPersetujuan, setStatusPersetujuan] = useState([
+    const [statusPersetujuan, setStatusPersetujuan] = useState<StatusPersetujuan[]>([
         { name: "Belum Diproses", jumlah: 0 },
         { name: "Disetujui", jumlah: 0 },
         { name: "Ditolak", jumlah: 0 }
@@ -339,7 +344,7 @@ function DashboardContent() {
 
             if (statusError) throw statusError;
 
-            const statusCounts = {
+            const statusCounts: { [key: string]: number } = {
                 "Belum Diproses": 0,
                 "Disetujui": 0,
                 "Ditolak": 0

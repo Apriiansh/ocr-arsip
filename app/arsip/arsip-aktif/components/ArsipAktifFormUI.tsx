@@ -54,6 +54,7 @@ interface ArsipAktifFormUIProps {
   handleRefreshDraft?: () => void; // Tambahkan opsional jika ingin lewat props
   kodeKlasifikasiMode: 'otomatis' | 'manual';
   setKodeKlasifikasiMode: (mode: 'otomatis' | 'manual') => void;
+  handleManualKodeKlasifikasiBlur: () => Promise<void>; // Handler baru
 }
 
 export default function ArsipAktifFormUI({
@@ -78,6 +79,7 @@ export default function ArsipAktifFormUI({
   handleRefreshDraft,
   kodeKlasifikasiMode,
   setKodeKlasifikasiMode,
+  handleManualKodeKlasifikasiBlur, // Destructure handler baru
 }: ArsipAktifFormUIProps) {
   // State untuk menampilkan preview PDF
   const [showPdfPreview, setShowPdfPreview] = useState(false);
@@ -218,9 +220,9 @@ export default function ArsipAktifFormUI({
                   required
                   disabled={submitting}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                {/* <p className="text-xs text-muted-foreground mt-1">
                   Nomor berkas otomatis berdasarkan jumlah arsip di bidang Anda.
-                </p>
+                </p>  */}
               </div>
 
               {/* Kode Klasifikasi Section */}
@@ -235,7 +237,7 @@ export default function ArsipAktifFormUI({
                       className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ease-in-out
                                   ${kodeKlasifikasiMode === 'otomatis' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/50'}`}
                     >
-                      Otomatis
+                      Select
                     </button>
                     <button
                       type="button"
@@ -243,7 +245,7 @@ export default function ArsipAktifFormUI({
                       className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ease-in-out
                                   ${kodeKlasifikasiMode === 'manual' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/50'}`}
                     >
-                      Manual
+                      Input
                     </button>
                   </div>
                 </div>
@@ -285,6 +287,7 @@ export default function ArsipAktifFormUI({
                     name="kode_klasifikasi"
                     value={formData.kode_klasifikasi}
                     onChange={handleChange}
+                    onBlur={handleManualKodeKlasifikasiBlur} // Tambahkan onBlur di sini
                       placeholder="Contoh: 045Dis.Kearsipan-IV/2025" // Adjusted placeholder
                     className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring bg-input text-foreground placeholder-muted-foreground"
                     required

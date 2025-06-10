@@ -1,14 +1,8 @@
-// app/page.tsx
-
 "use client";
 
 import { createClient } from "@/utils/supabase/client";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { toast } from "react-toastify";
-import Link from "next/link";
-import { Bell, ArrowRight, X, Inbox, Eye } from "lucide-react";
-import { markNotificationAsRead } from "@/utils/notificationService";
 
 // Definisikan konstanta untuk path agar mudah dikelola
 const ROLE_PATHS: Record<string, string> = {
@@ -20,23 +14,7 @@ const ROLE_PATHS: Record<string, string> = {
 };
 const DEFAULT_USER_PATH = "/user/";
 const SIGN_IN_PATH = "/sign-in";
-const NOTIFICATION_PATH = "/notifikasi";
 const SESSION_STORAGE_LOGIN_NOTIFICATION_SHOWN_KEY = 'loginNotificationShown';
-
-// Toast components tetap sama...
-const IndividualNotificationToastContent = ({ message, link, notificationId }: {
-  message: string;
-  link?: string | null;
-  notificationId: string;
-}) => {
-  // Implementation sama seperti sebelumnya...
-  return <div>Notification content</div>;
-};
-
-const SummaryNotificationToastContent = ({ remainingCount }: { remainingCount: number }) => {
-  // Implementation sama seperti sebelumnya...
-  return <div>Summary content</div>;
-};
 
 export default function Home() {
   const supabase = createClient();
@@ -48,7 +26,6 @@ export default function Home() {
     console.log("HomeRedirect: checkSessionAndRedirect started");
 
     try {
-      
       await new Promise(resolve => setTimeout(resolve, 100));
 
       console.log("HomeRedirect: 1. Attempting to get user session...");
@@ -137,7 +114,8 @@ export default function Home() {
         router.push(redirectPath);
       }
 
-    } catch (criticalError: any) {
+    } catch (criticalError) {
+      // Removed ": any" and don't use "any" type
       console.error("HomeRedirect: CRITICAL ERROR:", criticalError);
       sessionStorage.removeItem(SESSION_STORAGE_LOGIN_NOTIFICATION_SHOWN_KEY);
       router.push(SIGN_IN_PATH);
@@ -151,7 +129,6 @@ export default function Home() {
     checkSessionAndRedirect();
   }, [checkSessionAndRedirect]);
 
-  // PERBAIKAN: Tampilkan loading dengan lebih baik
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import LayoutWrapper from "@/components/LayoutWrapper";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const defaultUrl = process.env.NEXT_PUBLIC_VERCEL_URL
   ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
@@ -38,9 +39,8 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <LayoutWrapper>            
-            {/* The LayoutWrapper's <main> tag will now handle centering for auth pages.
-                For other pages, <main> is just flex-grow, and children (the page) renders directly. */}
               {children}
+              <SpeedInsights />
           </LayoutWrapper>
         </ThemeProvider>
       </body>

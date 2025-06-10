@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 
 // Initialize PDF.js worker
 if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs';
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 }
 
 interface ExtractedData {
@@ -131,27 +131,11 @@ export const extractDataFromPDF = (text: string): ExtractedData => {
   };
 };
 
-/** Konversi array buffer menjadi base64 string */
-const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  
-  return window.btoa(binary);
-};
-
 /** Ekstrak teks dari PDF */
 export const extractTextFromPDF = async (pdfFile: File): Promise<string> => {
   try {
     // Baca file sebagai ArrayBuffer
     const arrayBuffer = await pdfFile.arrayBuffer();
-    
-    // Konversi ke base64 untuk caching
-    const pdfBase64 = arrayBufferToBase64(arrayBuffer);
     
     // Load PDF dokumen
     const loadingTask = pdfjs.getDocument({ data: arrayBuffer });

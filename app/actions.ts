@@ -316,9 +316,12 @@ export async function getCurrentUserProfile() {
 
     if (profileError) throw profileError;
     return { success: true, data: userProfile };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching current user profile:", error);
-    return { success: false, message: error.message || "Gagal mengambil data profil pengguna.", data: null };
+    if (error instanceof Error) {
+      return { success: false, message: error.message || "Gagal mengambil data profil pengguna.", data: null };
+    }
+    return { success: false, message: "Gagal mengambil data profil pengguna.", data: null };
   }
 }
 
@@ -346,9 +349,12 @@ export async function updateCurrentUserProfileAction(formData: FormData) {
 
     if (updateError) throw updateError;
     return { success: true, message: "Profil berhasil diperbarui." };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error updating current user profile:", error);
-    return { success: false, message: error.message || "Gagal memperbarui profil." };
+    if (error instanceof Error) {
+      return { success: false, message: error.message || "Gagal memperbarui profil." };
+    }
+    return { success: false, message: "Gagal memperbarui profil." };
   }
 }
 
@@ -375,9 +381,12 @@ export async function getUsersWithBidangAction(filterRole?: string) {
 
     if (error) throw error;
     return { success: true, data };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching users:", error);
-    return { success: false, message: error.message || "Gagal mengambil data pengguna." };
+    if (error instanceof Error) {
+      return { success: false, message: error.message || "Gagal mengambil data pengguna." };
+    }
+    return { success: false, message: "Gagal mengambil data pengguna." };
   }
 }
 
@@ -435,9 +444,12 @@ export async function adminCreateUserAction(formData: FormData) {
     }
 
     return { success: true, message: "Pengguna berhasil dibuat." };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating user:", error);
-    return { success: false, message: error.message || "Gagal membuat pengguna." };
+    if (error instanceof Error) {
+      return { success: false, message: error.message || "Gagal membuat pengguna." };
+    }
+    return { success: false, message: "Gagal membuat pengguna." };
   }
 }
 
@@ -450,7 +462,7 @@ export async function adminUpdateUserAction(userId: string, formData: FormData) 
   console.log(`[adminUpdateUserAction] Attempting to update user ID: ${userId}`);
   
   // Log semua data dari FormData
-  const formEntries: Record<string, any> = {};
+  const formEntries: Record<string, FormDataEntryValue> = {};
   formData.forEach((value, key) => {
     formEntries[key] = value;
   });
@@ -518,9 +530,12 @@ export async function adminUpdateUserAction(userId: string, formData: FormData) 
 
     console.log(`[adminUpdateUserAction] User ID: ${userId} updated successfully.`);
     return { success: true, message: "Pengguna berhasil diperbarui." };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`[adminUpdateUserAction] Catch block error for user ID ${userId}:`, JSON.stringify(error, null, 2));
-    return { success: false, message: error.message || "Gagal memperbarui pengguna." };
+    if (error instanceof Error) {
+      return { success: false, message: error.message || "Gagal memperbarui pengguna." };
+    }
+    return { success: false, message: "Gagal memperbarui pengguna." };
   }
 }
 
@@ -534,8 +549,11 @@ export async function adminDeleteUserAction(userId: string) {
     const { error } = await supabase.auth.admin.deleteUser(userId);
     if (error) throw error;
     return { success: true, message: "Pengguna berhasil dihapus." };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error deleting user:", error);
-    return { success: false, message: error.message || "Gagal menghapus pengguna." };
+    if (error instanceof Error) {
+      return { success: false, message: error.message || "Gagal menghapus pengguna." };
+    }
+    return { success: false, message: "Gagal menghapus pengguna." };
   }
 }

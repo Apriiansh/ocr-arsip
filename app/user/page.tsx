@@ -29,6 +29,11 @@ interface ArsipJatuhTempo extends ArsipData {
     selisih_hari?: number;
 }
 
+interface MonthlyChartEntry {
+    name: string;
+    jumlah: number;
+}
+
 // Stats Cards Component
 function StatsCards({ stats }: { stats: Stats }) {
     const statsData = [
@@ -81,7 +86,7 @@ function StatsCards({ stats }: { stats: Stats }) {
 }
 
 // Monthly Chart Component
-function MonthlyChart({ data }: { data: any[] }) {
+function MonthlyChart({ data }: { data: MonthlyChartEntry[] }) {
     return (
         <div className="lg:col-span-2 card-neon p-6 rounded-xl">
             <h3 className="text-xl font-semibold text-foreground mb-6 flex items-center gap-2">
@@ -109,7 +114,7 @@ function MonthlyChart({ data }: { data: any[] }) {
                                     border: '1px solid hsl(var(--border))',
                                     borderRadius: '0.5rem'
                                 }}
-                                formatter={(value, name) => [value, "Jumlah Arsip"]}
+                                formatter={(value, name) => [value, name]}
                             />
                             <Legend wrapperStyle={{ fontSize: "14px" }} />
                             <Bar
@@ -369,7 +374,7 @@ function DashboardContent() {
         arsipDipindahkan: 0
     });
 
-    const [monthlyChartData, setMonthlyChartData] = useState<any[]>([]);
+    const [monthlyChartData, setMonthlyChartData] = useState<MonthlyChartEntry[]>([]);
     const [recentArchives, setRecentArchives] = useState<ArsipData[]>([]);
     const [retentionAlerts, setRetentionAlerts] = useState<ArsipJatuhTempo[]>([]);
 

@@ -25,6 +25,12 @@ interface ArsipData {
     user_id: string;
 }
 
+interface StatusChartData {
+    name: string;
+    jumlah: number;
+    fill: string;
+}
+
 // Stats Cards Component
 function StatsCards({ stats }: { stats: Stats }) {
     const statsData = [
@@ -64,14 +70,14 @@ function StatsCards({ stats }: { stats: Stats }) {
                 <div key={index} className="card-neon p-6 rounded-xl">
                     <div className="flex items-center gap-4">
                         <div className={`p-3 rounded-full ${item.colorClass === "primary" ? "bg-primary/10" :
-                                item.colorClass === "neon-green" ? "bg-[hsl(var(--neon-green))]/20" :
-                                    item.colorClass === "neon-orange" ? "bg-[hsl(var(--neon-orange))]/20" :
-                                        "bg-destructive/10"
+                            item.colorClass === "neon-green" ? "bg-[hsl(var(--neon-green))]/20" :
+                                item.colorClass === "neon-orange" ? "bg-[hsl(var(--neon-orange))]/20" :
+                                    "bg-destructive/10"
                             }`}>
                             <item.icon className={`w-6 h-6 ${item.colorClass === "primary" ? "text-primary" :
-                                    item.colorClass === "neon-green" ? "text-[hsl(var(--neon-green))]" :
-                                        item.colorClass === "neon-orange" ? "text-[hsl(var(--neon-orange))]" :
-                                            "text-destructive"
+                                item.colorClass === "neon-green" ? "text-[hsl(var(--neon-green))]" :
+                                    item.colorClass === "neon-orange" ? "text-[hsl(var(--neon-orange))]" :
+                                        "text-destructive"
                                 }`} />
                         </div>
                         <div>
@@ -86,7 +92,7 @@ function StatsCards({ stats }: { stats: Stats }) {
 }
 
 // Status Chart Component
-function StatusChart({ data }: { data: any[] }) {
+function StatusChart({ data }: { data: StatusChartData[] }) {
     return (
         <div className="lg:col-span-2 card-neon p-6 rounded-xl">
             <h3 className="text-xl font-semibold text-foreground mb-6 flex items-center gap-2">
@@ -114,7 +120,7 @@ function StatusChart({ data }: { data: any[] }) {
                                     border: '1px solid hsl(var(--border))',
                                     borderRadius: '0.5rem'
                                 }}
-                                formatter={(value, name) => [value, "Jumlah Arsip"]}
+                                formatter={(value) => [value, "Jumlah Arsip"]}
                             />
                             <Legend wrapperStyle={{ fontSize: "14px" }} />
                             <Bar
@@ -241,9 +247,8 @@ function DashboardContent() {
         arsipDitolak: 0
     });
 
-    const [userName, setUserName] = useState<string | null>(null);
-    const [userBidang, setUserBidang] = useState<string | null>(null);
-    const [chartData, setChartData] = useState<any[]>([]);
+    // userName & userBidang removed (lint: assigned but never used)
+    const [chartData, setChartData] = useState<StatusChartData[]>([]);
     const [recentArchives, setRecentArchives] = useState<ArsipData[]>([]);
 
     const ALLOWED_ROLE = "Kepala_Bidang";
@@ -255,9 +260,7 @@ function DashboardContent() {
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
             if (sessionError || !session) throw new Error("No active session");
 
-            const name = session.user?.user_metadata?.full_name || session.user?.email;
-            setUserName(name || "Kepala Bidang");
-
+            // Remove name variable (lint: defined but never used)
             const { data: userData, error: userError } = await supabase
                 .from("users")
                 .select("role, id_bidang_fkey")
@@ -272,17 +275,7 @@ function DashboardContent() {
                 throw new Error("Unauthorized role");
             }
 
-            const { data: bidangData, error: bidangError } = await supabase
-                .from("daftar_bidang")
-                .select("nama_bidang")
-                .eq("id_bidang", userData.id_bidang_fkey)
-                .single();
-
-            if (bidangError) {
-                console.error("Error fetching bidang:", bidangError);
-            }
-
-            setUserBidang(bidangData?.nama_bidang || null);
+            // Remove userBidang variable (lint: assigned but never used)
             return userData.id_bidang_fkey;
 
         } catch (authError) {
@@ -305,7 +298,7 @@ function DashboardContent() {
 
             if (lokasiError) throw lokasiError;
 
-            const lokasiIds = lokasiDiBidang?.map(l => l.id_lokasi) || [];
+            const lokasiIds: string[] = lokasiDiBidang?.map((l: { id_lokasi: string }) => l.id_lokasi) || [];
             if (lokasiIds.length === 0) {
                 setStats({ totalArsip: 0, arsipMenunggu: 0, arsipDisetujui: 0, arsipDitolak: 0 });
                 setChartData([]);
@@ -330,12 +323,12 @@ function DashboardContent() {
 
             const newStats = {
                 totalArsip: arsipData.length,
-                arsipMenunggu: arsipData.filter(a => a.status_persetujuan === "Menunggu").length,
-                arsipDisetujui: arsipData.filter(a => a.status_persetujuan === "Disetujui").length,
-                arsipDitolak: arsipData.filter(a => a.status_persetujuan === "Ditolak").length
+                arsipMenunggu: arsipData.filter((a: ArsipData) => a.status_persetujuan === "Menunggu").length,
+                arsipDisetujui: arsipData.filter((a: ArsipData) => a.status_persetujuan === "Disetujui").length,
+                arsipDitolak: arsipData.filter((a: ArsipData) => a.status_persetujuan === "Ditolak").length
             };
 
-            const newChartData = [
+            const newChartData: StatusChartData[] = [
                 { name: "Disetujui", jumlah: newStats.arsipDisetujui, fill: "hsl(var(--neon-green))" },
                 { name: "Menunggu", jumlah: newStats.arsipMenunggu, fill: "hsl(var(--neon-orange))" },
                 { name: "Ditolak", jumlah: newStats.arsipDitolak, fill: "hsl(var(--destructive))" }
@@ -343,7 +336,7 @@ function DashboardContent() {
 
             setStats(newStats);
             setChartData(newChartData);
-            setRecentArchives(arsipData.slice(0, 4));
+            setRecentArchives((arsipData as ArsipData[]).slice(0, 4));
 
         } catch (fetchError) {
             const message = fetchError instanceof Error ? fetchError.message : "Failed to fetch dashboard data";

@@ -37,13 +37,13 @@ export default function NotifikasiPage() {
             }
             setUserId(user.id);
 
-            const { data, error } = await supabase
+            const { data, error: notifError } = await supabase
                 .from("notifications")
                 .select("id_notif, message, created_at, is_read, link")
                 .eq("user_id", user.id)
                 .order("created_at", { ascending: false });
 
-            if (error) {
+            if (notifError) {
                 toast.error("Gagal mengambil notifikasi.");
                 setNotifikasi([]);
             } else {
@@ -67,7 +67,27 @@ export default function NotifikasiPage() {
             } else {
                 toast.error("Gagal menandai notifikasi.");
             }
-        } catch (error) {
+        } catch {
+            toast.error("Terjadi kesalahan.");
+        }
+    };
+
+    // Tambahkan fungsi untuk menandai semua notifikasi sebagai sudah dibaca
+    const handleMarkAllAsRead = async () => {
+        if (!userId) return;
+        try {
+            const { error: updateError } = await supabase
+                .from("notifications")
+                .update({ is_read: true })
+                .eq("user_id", userId)
+                .eq("is_read", false);
+            if (updateError) {
+                toast.error("Gagal menandai semua notifikasi.");
+                return;
+            }
+            setNotifikasi(prev => prev.map(item => ({ ...item, is_read: true })));
+            toast.success("Semua notifikasi telah ditandai sebagai dibaca.");
+        } catch {
             toast.error("Terjadi kesalahan.");
         }
     };
@@ -77,6 +97,17 @@ export default function NotifikasiPage() {
             <h1 className="text-2xl font-semibold mb-4 flex items-center gap-2">
                 <BellRing size={24} /> Notifikasi
             </h1>
+            {/* Tombol Mark All as Read */}
+            {notifikasi.length > 0 && notifikasi.some(n => !n.is_read) && (
+                <div className="mb-4 flex justify-end">
+                    <button
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/80 text-sm font-medium transition"
+                        onClick={handleMarkAllAsRead}
+                    >
+                        Tandai Semua Sudah Dibaca
+                    </button>
+                </div>
+            )}
 
             {loading ? (
                 <p className="text-muted-foreground">Memuat notifikasi...</p>
@@ -87,9 +118,8 @@ export default function NotifikasiPage() {
                     {notifikasi.map((item) => (
                         <li
                             key={item.id_notif}
-                            className={`bg-card border border-border p-4 rounded-lg shadow-sm transition-opacity duration-300 ${
-                                item.is_read ? 'opacity-60' : 'cursor-pointer hover:bg-muted/50'
-                            }`}
+                            className={`bg-card border border-border p-4 rounded-lg shadow-sm transition-opacity duration-300 ${item.is_read ? 'opacity-60' : 'cursor-pointer hover:bg-muted/50'
+                                }`}
                             onClick={() => !item.is_read && handleMarkAsRead(item.id_notif)}
                         >
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -104,7 +134,7 @@ export default function NotifikasiPage() {
                                         href={item.link}
                                         className="inline-block mt-2 md:mt-0 px-3 py-1 bg-primary text-primary-foreground rounded text-xs font-medium hover:bg-primary/80 transition"
                                         onClick={e => {
-                                            e.stopPropagation(); 
+                                            e.stopPropagation();
                                             if (!item.is_read) {
                                                 handleMarkAsRead(item.id_notif);
                                             }

@@ -22,6 +22,7 @@ export default function SettingsPage() {
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [formData, setFormData] = useState(initialFormData);
     const [loading, setLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showNewPassword, setShowNewPassword] = useState(false);
     const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
@@ -31,14 +32,24 @@ export default function SettingsPage() {
         setError(null);
         const result = await getCurrentUserProfile();
         if (result.success && result.data) {
-            const rawData = result.data as any; 
-            
-            const transformedDaftarBidang = 
-                rawData.daftar_bidang && Array.isArray(rawData.daftar_bidang) && rawData.daftar_bidang.length > 0
-                ? rawData.daftar_bidang[0]
-                : rawData.daftar_bidang && !Array.isArray(rawData.daftar_bidang) 
-                    ? rawData.daftar_bidang 
-                    : null;
+            // Fix: Specify the type instead of any for rawData
+            const rawData = result.data as UserProfile & {
+                daftar_bidang?: { nama_bidang?: string }[] | { nama_bidang?: string } | null;
+            };
+
+            const rawDaftarBidang = rawData.daftar_bidang;
+            let transformedDaftarBidang: { nama_bidang: string } | null = null;
+
+            if (rawDaftarBidang) {
+                if (Array.isArray(rawDaftarBidang) && rawDaftarBidang.length > 0) {
+                    const nama_bidang = rawDaftarBidang[0]?.nama_bidang;
+                    if (typeof nama_bidang === "string") {
+                        transformedDaftarBidang = { nama_bidang };
+                    }
+                } else if (!Array.isArray(rawDaftarBidang) && typeof rawDaftarBidang.nama_bidang === "string") {
+                    transformedDaftarBidang = { nama_bidang: rawDaftarBidang.nama_bidang };
+                }
+            }
 
             const profile: UserProfile = {
                 user_id: rawData.user_id,
@@ -80,45 +91,62 @@ export default function SettingsPage() {
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError(null);
+        setIsSubmitting(true);
 
-        const payload = new FormData();
-        payload.append("nama", formData.nama);
-        if (formData.nip) payload.append("nip", formData.nip);
-        if (formData.pangkat) payload.append("pangkat", formData.pangkat);
+        // Buat instance FormData baru setiap kali submit
+        const currentPayload = new FormData();
+        currentPayload.append("nama", formData.nama);
+        if (formData.nip) currentPayload.append("nip", formData.nip);
+        if (formData.pangkat) currentPayload.append("pangkat", formData.pangkat);
 
-        if (formData.newPassword) {
-            if (formData.newPassword !== formData.confirmNewPassword) {
-                toast.error("Password baru dan konfirmasi password tidak cocok.");
-                return;
-            }
-            // Jika ingin update password di sini, tambahkan ke payload dan handle di server action
-            // Untuk saat ini, kita fokus pada update profil dasar
-            // payload.append("newPassword", formData.newPassword);
-            // Untuk update password, biasanya lebih aman menggunakan updateUser dari Supabase Auth
-            // yang memerlukan password saat ini atau link reset.
-            // Untuk kesederhanaan, kita akan memisahkan update password.
-            try {
-                const { error: passwordError } = await supabase.auth.updateUser({ password: formData.newPassword });
-                if (passwordError) {
-                    toast.error(`Gagal memperbarui password: ${passwordError.message}`);
-                    return; // Hentikan jika update password gagal
+        try {
+            // Bagian untuk update password
+            if (formData.newPassword) {
+                if (formData.newPassword !== formData.confirmNewPassword) {
+                    toast.error("Password baru dan konfirmasi password tidak cocok.");
+                    // setIsSubmitting akan dihandle oleh finally
+                    return;
                 }
-                toast.success("Password berhasil diperbarui!");
-            } catch (err: any) {
-                toast.error(`Error saat memperbarui password: ${err.message}`);
-                return;
+                try {
+                    const { error: passwordError } = await supabase.auth.updateUser({ password: formData.newPassword });
+                    if (passwordError) {
+                        console.error("Password update error object:", passwordError); // Log detail error
+                        toast.error(`Gagal memperbarui password: ${passwordError.message}`);
+                        // setIsSubmitting akan dihandle oleh finally
+                        return;
+                    }
+                    toast.success("Password berhasil diperbarui!");
+                    // Kosongkan field password setelah berhasil
+                    setFormData(prev => ({ ...prev, newPassword: "", confirmNewPassword: "" }));
+                } catch (err: unknown) { // Catch untuk supabase.auth.updateUser
+                    console.error("Exception during password update:", err); // Log exception
+                    let errorMessage = "Terjadi kesalahan tidak diketahui saat memperbarui password.";
+                    if (err instanceof Error) {
+                        errorMessage = `Error saat memperbarui password: ${err.message}`;
+                    }
+                    toast.error(errorMessage);
+                    // setIsSubmitting akan dihandle oleh finally
+                    return;
+                }
             }
-        }
 
+            // Bagian untuk update profil (nama, nip, pangkat)
+            // Hanya dijalankan jika update password berhasil atau tidak ada percobaan update password
+            const result = await updateCurrentUserProfileAction(currentPayload);
 
-        const result = await updateCurrentUserProfileAction(payload);
-
-        if (result.success) {
-            toast.success(result.message);
-            fetchProfile();
-            setFormData(prev => ({ ...prev, newPassword: "", confirmNewPassword: "" }));
-        } else {
-            toast.error(result.message || "Gagal memperbarui profil.");
+            if (result.success) {
+                toast.success(result.message);
+                await fetchProfile(); // Muat ulang profil untuk data terbaru
+            } else {
+                toast.error(result.message || "Gagal memperbarui profil.");
+            }
+        } catch (profileUpdateError: unknown) {
+            // Catch error tak terduga dari updateCurrentUserProfileAction atau logika lain
+            console.error("Kesalahan tak terduga saat update profil:", profileUpdateError);
+            const message = profileUpdateError instanceof Error ? profileUpdateError.message : "Terjadi kesalahan tak terduga.";
+            toast.error(`Gagal memperbarui profil: ${message}`);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -135,7 +163,7 @@ export default function SettingsPage() {
             <ToastContainer position="top-right" autoClose={3000} />
             <div className="max-w-2xl mx-auto bg-card shadow-lg rounded-lg p-6 md:p-8 border border-border">
                 <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-6">Pengaturan Akun</h1>
-                
+
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
                         <label htmlFor="nama" className="block text-sm font-medium text-muted-foreground">Nama Lengkap</label>
@@ -145,7 +173,7 @@ export default function SettingsPage() {
                         <label htmlFor="email" className="block text-sm font-medium text-muted-foreground">Email</label>
                         <input type="email" name="email" id="email" value={formData.email} disabled className="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm bg-muted/50 text-muted-foreground sm:text-sm cursor-not-allowed" />
                     </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label htmlFor="nip" className="block text-sm font-medium text-muted-foreground">NIP</label>
                             <input type="text" name="nip" id="nip" value={formData.nip} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm bg-input text-foreground" />
@@ -173,7 +201,7 @@ export default function SettingsPage() {
                         <div className="space-y-4">
                             <div>
                                 <label htmlFor="newPassword" className="block text-sm font-medium text-muted-foreground">Password Baru</label>
-                                 <div className="relative">
+                                <div className="relative">
                                     <input type={showNewPassword ? "text" : "password"} name="newPassword" id="newPassword" value={formData.newPassword} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm bg-input text-foreground pr-10" />
                                     <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground hover:text-foreground">
                                         {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -182,7 +210,7 @@ export default function SettingsPage() {
                             </div>
                             <div>
                                 <label htmlFor="confirmNewPassword" className="block text-sm font-medium text-muted-foreground">Konfirmasi Password Baru</label>
-                                 <div className="relative">
+                                <div className="relative">
                                     <input type={showConfirmNewPassword ? "text" : "password"} name="confirmNewPassword" id="confirmNewPassword" value={formData.confirmNewPassword} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm bg-input text-foreground pr-10" />
                                     <button type="button" onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)} className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground hover:text-foreground">
                                         {showConfirmNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -193,8 +221,12 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="flex justify-end pt-4">
-                        <button type="submit" className="px-6 py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
-                            Simpan Perubahan
+                        <button
+                            type="submit"
+                            className="px-6 py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isSubmitting || loading}
+                        >
+                            {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
                         </button>
                     </div>
                 </form>

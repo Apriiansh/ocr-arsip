@@ -45,8 +45,12 @@ export async function sendUserNotification(
     // Logika pengiriman email dihapus
 
     return true;
-  } catch (error: any) {
-    console.error("Error sending notification:", error.message || error);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error sending notification:", error.message);
+    } else {
+      console.error("Error sending notification:", error);
+    }
     return false;
   }
 }
@@ -89,8 +93,12 @@ export async function sendRoleNotification(
     // Logika pengiriman email dihapus
 
     return true;
-  } catch (error: any) {
-    console.error(`Error sending notifications to role ${role}:`, error.message || error);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error(`Error sending notifications to role ${role}:`, error.message);
+    } else {
+      console.error(`Error sending notifications to role ${role}:`, error);
+    }
     return false;
   }
 }
@@ -147,81 +155,16 @@ export async function sendDepartmentHeadNotification(
     // Logika pengiriman email dihapus
 
     return true;
-  } catch (error: any) {
-    console.error("Gagal mengirim notifikasi ke Kepala Bidang bidang:", error.message || error);
-    return false;
-  }
-}
-
-// Kirim notifikasi ke beberapa peran sekaligus
-export async function sendMultiRoleNotification(
-  roles: UserRole[],
-  title: string,
-  message: string,
-  link: string = "",
-  relatedEntity?: string,
-  relatedId?: number
-): Promise<boolean> {
-  try {
-    const results = await Promise.all(
-      roles.map(role => 
-        sendRoleNotification(role, title, message, link, relatedEntity)
-      )
-    );
-    
-    // Kembalikan true hanya jika semua notifikasi berhasil dikirim
-    return results.every(result => result === true);
-  } catch (error: any) {
-    console.error("Error sending multi-role notifications:", error.message || error);
-    return false;
-  }
-}
-
-// Kirim notifikasi keseluruh departemen (misalnya untuk semua pegawai dalam bidang tertentu)
-export async function sendDepartmentNotification(
-  bidang: string,
-  title: string,
-  message: string,
-  link: string = "",
-  relatedEntity?: string,
-  relatedId?: number
-): Promise<boolean> {
-  try {
-    // Dapatkan semua pengguna dalam departemen tertentu
-    const { data: usersData, error: userError } = await supabase
-      .from("users")
-      .select("user_id, email") // Ganti id menjadi user_id
-      .eq("bidang", bidang);
-
-    if (userError) throw userError;
-    if (!usersData || usersData.length === 0) {
-      console.log(`No users found in department: ${bidang}`);
-      return false;
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Gagal mengirim notifikasi ke Kepala Bidang bidang:", error.message);
+    } else {
+      console.error("Gagal mengirim notifikasi ke Kepala Bidang bidang:", error);
     }
-
-    // Buat array notifikasi untuk semua pengguna dalam departemen
-    const notifications = usersData.map(user => ({
-      user_id: user.user_id, // Ganti id menjadi user_id
-      title,
-      message,
-      link,
-      related_entity: relatedEntity,
-      related_id: relatedId,
-    }));
-
-    // Masukkan semua notifikasi sekaligus
-    const { error } = await supabase.from("notifications").insert(notifications);
-
-    if (error) throw error;
-
-    // Logika pengiriman email dihapus
-
-    return true;
-  } catch (error: any) {
-    console.error(`Error sending notifications to department ${bidang}:`, error.message || error);
     return false;
   }
 }
+
 
 // Dapatkan notifikasi pengguna saat ini dengan filter
 export async function getUserNotifications(filter: NotificationFilter = {}): Promise<Notification[]> {
@@ -262,8 +205,12 @@ export async function getUserNotifications(filter: NotificationFilter = {}): Pro
 
     if (error) throw error;
     return data || [];
-  } catch (error: any) {
-    console.error("Error fetching notifications:", error.message || error);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error fetching notifications:", error.message);
+    } else {
+      console.error("Error fetching notifications:", error);
+    }
     return [];
   }
 }
@@ -287,8 +234,12 @@ export async function getUnreadNotificationCount(): Promise<number> {
 
     if (error) throw error;
     return count || 0;
-  } catch (error: any) {
-    console.error("Error fetching unread notification count:", error.message || error);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error fetching unread notification count:", error.message);
+    } else {
+      console.error("Error fetching unread notification count:", error);
+    }
     return 0;
   }
 }
@@ -303,8 +254,12 @@ export async function markNotificationAsRead(notificationId: string): Promise<bo
 
     if (error) throw error;
     return true;
-  } catch (error: any) {
-    console.error("Error marking notification as read:", error.message || error);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error marking notification as read:", error.message);
+    } else {
+      console.error("Error marking notification as read:", error);
+    }
     return false;
   }
 }
@@ -323,8 +278,12 @@ export async function markAllNotificationsAsRead(): Promise<boolean> {
 
     if (error) throw error;
     return true;
-  } catch (error: any) {
-    console.error("Error marking all notifications as read:", error.message || error);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error marking all notifications as read:", error.message);
+    } else {
+      console.error("Error marking all notifications as read:", error);
+    }
     return false;
   }
 }
@@ -339,8 +298,12 @@ export async function deleteNotification(notificationId: string): Promise<boolea
 
     if (error) throw error;
     return true;
-  } catch (error: any) {
-    console.error("Error deleting notification:", error.message || error);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error deleting notification:", error.message);
+    } else {
+      console.error("Error deleting notification:", error);
+    }
     return false;
   }
 }
@@ -359,46 +322,16 @@ export async function deleteAllReadNotifications(): Promise<boolean> {
 
     if (error) throw error;
     return true;
-  } catch (error: any) {
-    console.error("Error deleting read notifications:", error.message || error);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("Error deleting read notifications:", error.message);
+    } else {
+      console.error("Error deleting read notifications:", error);
+    }
     return false;
   }
 }
 
-// Contoh penggunaan untuk mengirim notifikasi berdasarkan peran
-export async function notifyAboutNewTask(
-  taskId: number,
-  taskTitle: string,
-  assignedTo: string,
-  departmentId: string
-): Promise<void> {
-  // Notifikasi untuk pegawai yang ditugaskan
-  await sendUserNotification(
-    assignedTo,
-    "Tugas Baru",
-    `Anda telah ditugaskan tugas baru: ${taskTitle}`,
-    `/tasks/${taskId}`,
-    "task",
-  );
-  
-  // Notifikasi untuk kepala bidang dari departemen tersebut
-  await sendRoleNotification(
-    "Kepala_Bidang",
-    "Tugas Baru Dibuat",
-    `Tugas baru telah dibuat di departemen Anda: ${taskTitle}`,
-    `/tasks/${taskId}`,
-    "task",
-  );
-  
-  // Notifikasi untuk admin (untuk tujuan pencatatan)
-  await sendRoleNotification(
-    "Admin",
-    "Tugas Baru Sistem",
-    `Tugas baru telah dibuat: ${taskTitle}`,
-    `/admin/tasks`,
-    "task",
-  );
-}
 
 // // Fungsi baru untuk mengirim notifikasi terkait retensi arsip
 // export async function sendArchiveRetentionAlert(

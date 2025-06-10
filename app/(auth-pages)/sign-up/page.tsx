@@ -7,13 +7,6 @@ import { Eye, EyeOff } from "lucide-react";
 import { signUpAction } from "@/app/actions";
 import Link from "next/link";
 
-enum UserRole {
-  PEGAWAI = "Pegawai",
-  KEPALA_BIDANG = "Kepala_Bidang",
-  SEKRETARIS = "Sekretaris",
-  KEPALA_DINAS = "Kepala_Dinas"
-}
-
 enum Jabatan {
   ARSIPARIS_AHLI_PERTAMA = "Arsiparis Ahli Pertama",
   ARSIPARIS_AHLI_MUDA = "Arsiparis Ahli Muda",
@@ -92,7 +85,7 @@ function SignUpForm() {
           router.push("/sign-in");
         }, 3000);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Sign up error:", err);
       setError("Terjadi kesalahan saat mendaftar");
     } finally {

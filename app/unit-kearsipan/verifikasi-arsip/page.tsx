@@ -6,7 +6,7 @@ import { createClient } from "@/utils/supabase/client";
 import { FileCheck, CheckCircle2, XCircle, Search, Filter, Box } from "lucide-react";
 import { toast } from "react-toastify";
 import { sendUserNotification } from "@/utils/notificationService";
-import { LoadingSkeleton } from "./components/VerifikasiArsipSkeleton"; // Import skeleton
+import { LoadingSkeleton } from "./components/VerifikasiArsipSkeleton";
 
 interface ArsipInaktif {
     id_arsip_inaktif: string;
@@ -17,7 +17,6 @@ interface ArsipInaktif {
     jumlah: number;
     status_persetujuan: string;
     created_at: string;
-    // tanggal_berakhir: string; // Tidak ada di query select, mungkin tidak relevan untuk verifikasi
     tingkat_perkembangan: string | null;
     keterangan: string | null;
     nomor_definitif_folder_dan_boks: string | null;
@@ -26,24 +25,23 @@ interface ArsipInaktif {
     nasib_akhir: string | null;
     kategori_arsip: string | null;
     tanggal_pindah: string | null;
-    user_id?: string; // Untuk notifikasi
+    user_id?: string;
 }
 
 export default function VerifikasiArsipInaktif() {
     const supabase = createClient();
     const router = useRouter();
-    
+
     // State Management
     const [authLoading, setAuthLoading] = useState(true);
-    const [dataLoading, setDataLoading] = useState(true); // Renamed for clarity
-    const [error, setError] = useState<string | null>(null);
+    const [dataLoading, setDataLoading] = useState(true);
     const [arsipList, setArsipList] = useState<ArsipInaktif[]>([]);
     const [filteredArsip, setFilteredArsip] = useState<ArsipInaktif[]>([]);
     const [selectedArsipIds, setSelectedArsipIds] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
-    const [statusFilter, setStatusFilter] = useState("Menunggu"); // Default to "Menunggu"
+    const [statusFilter, setStatusFilter] = useState("Menunggu");
     const [sortConfig, setSortConfig] = useState<{ key: 'nomor_berkas' | 'created_at'; direction: 'asc' | 'desc' }>({
-        key: 'created_at', // Default sort
+        key: 'created_at',
         direction: 'desc'
     });
 
@@ -56,25 +54,20 @@ export default function VerifikasiArsipInaktif() {
     const checkAuth = useCallback(async () => {
         try {
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
             if (sessionError || !session) {
                 throw new Error("No active session");
             }
-
             const { data: userData, error: userError } = await supabase
                 .from("users")
                 .select("role")
                 .eq("user_id", session.user.id)
                 .single();
-
             if (userError || !userData || !userData.role) {
                 throw new Error("Invalid user data");
             }
-
             if (userData.role !== ALLOWED_ROLE) {
                 throw new Error("Unauthorized role");
             }
-
             return true;
         } catch (error) {
             const message = error instanceof Error ? error.message : "Authentication error";
@@ -108,7 +101,7 @@ export default function VerifikasiArsipInaktif() {
                     kategori_arsip,
                     tanggal_pindah,
                     user_id
-                `); 
+                `);
 
             if (statusFilter !== "all") {
                 query = query.eq("status_persetujuan", statusFilter);
@@ -119,7 +112,6 @@ export default function VerifikasiArsipInaktif() {
 
             if (error) throw error;
             setArsipList(data || []);
-            // setFilteredArsip will be handled by the search/filter useEffect
         } catch (error) {
             const message = error instanceof Error ? error.message : "Failed to fetch archives";
             console.error("Fetch error:", message);
@@ -139,9 +131,8 @@ export default function VerifikasiArsipInaktif() {
             }
             setAuthLoading(false);
         };
-
         initializePage();
-    }, [checkAuth, fetchArsipInaktif]); // sortConfig tidak perlu di sini karena fetchArsipInaktif sudah punya
+    }, [checkAuth, fetchArsipInaktif]);
 
     // Handle Search and Filter
     useEffect(() => {
@@ -151,13 +142,10 @@ export default function VerifikasiArsipInaktif() {
                 (arsip.nomor_berkas?.toLowerCase().includes(lowerSearchTerm)) ||
                 (arsip.kode_klasifikasi?.toLowerCase().includes(lowerSearchTerm)) ||
                 (arsip.jenis_arsip?.toLowerCase().includes(lowerSearchTerm));
-
-            // arsipList is already filtered by status from the server via fetchArsipInaktif
             return matchesSearch;
         });
         setFilteredArsip(filtered);
     }, [searchTerm, arsipList]);
-
 
     // Handle Status Update
     const updateStatus = async (newStatus: "Disetujui" | "Ditolak") => {
@@ -165,40 +153,30 @@ export default function VerifikasiArsipInaktif() {
             toast.warning("Pilih arsip yang akan diperbarui statusnya");
             return;
         }
-
         try {
             setDataLoading(true);
-
-            // Ambil data arsip untuk notifikasi
             const { data: arsipToUpdate, error: fetchError } = await supabase
                 .from("arsip_inaktif")
                 .select("id_arsip_inaktif, jenis_arsip, kode_klasifikasi, user_id")
                 .in("id_arsip_inaktif", selectedArsipIds);
-
             if (fetchError || !arsipToUpdate) {
                 throw fetchError || new Error("Gagal memuat data arsip untuk notifikasi");
             }
-
             const { error } = await supabase
                 .from("arsip_inaktif")
                 .update({ status_persetujuan: newStatus })
                 .in("id_arsip_inaktif", selectedArsipIds);
-
             if (error) throw error;
-
             toast.success(`Berhasil ${newStatus === "Disetujui" ? "menyetujui" : "menolak"} ${selectedArsipIds.length} arsip`);
             setSelectedArsipIds([]);
-
             // Notifikasi ke pemilik arsip
             const { data: { user } } = await supabase.auth.getUser();
             const currentUserId = user?.id;
-
             for (const arsip of arsipToUpdate) {
                 if (arsip.user_id && arsip.user_id !== currentUserId) {
                     const notificationTitle = `Status Arsip Inaktif: ${newStatus}`;
                     const notificationMessage = `Arsip "${arsip.jenis_arsip}" (${arsip.kode_klasifikasi}) telah ${newStatus.toLowerCase()} oleh Sekretaris.`;
                     const link = `/arsip/arsip-inaktif/detail/${arsip.id_arsip_inaktif}`;
-
                     await sendUserNotification(
                         arsip.user_id,
                         notificationTitle,
@@ -208,12 +186,10 @@ export default function VerifikasiArsipInaktif() {
                     );
                 }
             }
-
             await fetchArsipInaktif();
         } catch (error) {
             const message = error instanceof Error ? error.message : "Failed to update status";
             console.error("Update error (message):", message);
-            console.error("Full update error object:", JSON.stringify(error, null, 2)); // Log a full error object
             toast.error("Gagal memperbarui status: " + message);
         } finally {
             setDataLoading(false);
@@ -225,7 +201,7 @@ export default function VerifikasiArsipInaktif() {
             if (currentSortConfig.key === key) {
                 return { key, direction: currentSortConfig.direction === 'asc' ? 'desc' : 'asc' };
             }
-            return { key, direction: 'asc' }; // Default ke ascending untuk kolom baru
+            return { key, direction: 'asc' };
         });
     };
 
@@ -235,16 +211,14 @@ export default function VerifikasiArsipInaktif() {
         }
         return <span className="opacity-0 group-hover:opacity-50 transition-opacity">↕</span>;
     };
-    if (authLoading) { // Show full page skeleton during initial auth
-        // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
-        // Ini akan berguna untuk re-fetch.
+    if (authLoading) {
         return null;
     }
 
     return (
-        <div className="w-full h-full p-6"> 
-            <div className="max-w-8xl mx-auto w-full h-full flex flex-col"> 
-                <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col"> 
+        <div className="w-full h-full p-6">
+            <div className="max-w-8xl mx-auto w-full h-full flex flex-col">
+                <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col">
                     {/* Header */}
                     <div className="bg-primary/10 px-6 py-4 flex justify-between items-center">
                         <h2 className="text-2xl font-bold flex items-center gap-2 text-primary">
@@ -304,7 +278,7 @@ export default function VerifikasiArsipInaktif() {
                     </div>
                     <div className="p-6 flex-grow flex flex-col overflow-auto">
                         {dataLoading ? (
-                            <LoadingSkeleton /> 
+                            <LoadingSkeleton />
                         ) : (
                             <div className="overflow-x-auto rounded-lg border border-border">
                                 {filteredArsip.length > 0 ? (
@@ -326,7 +300,7 @@ export default function VerifikasiArsipInaktif() {
                                                         className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                                                     />
                                                 </th>
-                                                <th 
+                                                <th
                                                     className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:bg-muted-foreground/10 group"
                                                     onClick={() => handleSortRequest('nomor_berkas')}
                                                 >
@@ -339,7 +313,7 @@ export default function VerifikasiArsipInaktif() {
                                                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">No. Boks/Folder</th>
                                                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lokasi Simpan</th>
                                                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Jumlah</th>
-                                                <th 
+                                                <th
                                                     className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:bg-muted-foreground/10 group"
                                                     onClick={() => handleSortRequest('created_at')}
                                                 >
@@ -352,19 +326,19 @@ export default function VerifikasiArsipInaktif() {
                                             {filteredArsip.map((arsip) => (
                                                 <tr key={arsip.id_arsip_inaktif} className="hover:bg-muted/30 transition-colors duration-150">
                                                     <td className="px-4 py-3 text-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedArsipIds.includes(arsip.id_arsip_inaktif)}
-                                                        onChange={(e) => {
-                                                            const currentId = arsip.id_arsip_inaktif;
-                                                            if (e.target.checked) {
-                                                                setSelectedArsipIds(prev => [...prev, currentId]);
-                                                            } else {
-                                                                setSelectedArsipIds(prev => prev.filter(id => id !== currentId));
-                                                            }
-                                                        }}
-                                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                                    />
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedArsipIds.includes(arsip.id_arsip_inaktif)}
+                                                            onChange={(e) => {
+                                                                const currentId = arsip.id_arsip_inaktif;
+                                                                if (e.target.checked) {
+                                                                    setSelectedArsipIds(prev => [...prev, currentId]);
+                                                                } else {
+                                                                    setSelectedArsipIds(prev => prev.filter(id => id !== currentId));
+                                                                }
+                                                            }}
+                                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                        />
                                                     </td>
                                                     <td className="px-4 py-3 text-sm whitespace-nowrap text-foreground">{arsip.nomor_berkas}</td>
                                                     <td className="px-4 py-3 text-sm font-medium whitespace-nowrap text-foreground">{arsip.kode_klasifikasi}</td>
@@ -378,13 +352,12 @@ export default function VerifikasiArsipInaktif() {
                                                         {arsip.tanggal_pindah ? new Date(arsip.tanggal_pindah).toLocaleDateString('id-ID') : '-'}
                                                     </td>
                                                     <td className="px-4 py-3 text-center">
-                                                        <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold leading-none ${
-                                                            arsip.status_persetujuan === "Disetujui"
+                                                        <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold leading-none ${arsip.status_persetujuan === "Disetujui"
                                                                 ? "bg-green-100 text-green-700 dark:bg-green-700/20 dark:text-green-400"
                                                                 : arsip.status_persetujuan === "Ditolak"
-                                                                ? "bg-red-100 text-red-700 dark:bg-red-700/20 dark:text-red-400"
-                                                                : "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/20 dark:text-yellow-400"
-                                                        }`}>
+                                                                    ? "bg-red-100 text-red-700 dark:bg-red-700/20 dark:text-red-400"
+                                                                    : "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/20 dark:text-yellow-400"
+                                                            }`}>
                                                             {arsip.status_persetujuan}
                                                         </span>
                                                     </td>

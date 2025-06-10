@@ -1,31 +1,32 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation"; // Ditambahkan karena digunakan di versi lengkap
+import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { sendUserNotification } from "@/utils/notificationService";
-import { LoadingSkeleton } from "./components/VerifikasiArsipSkeleton"; // Import skeleton
-import { ChevronLeft, ChevronRight, Search, CheckCircle2, XCircle, Check, X, FileCheck, Box, Filter } from "lucide-react";
+import { LoadingSkeleton } from "./components/VerifikasiArsipSkeleton";
+import { ChevronLeft, ChevronRight, Search, CheckCircle2, XCircle, FileCheck, Box, Filter } from "lucide-react";
 
 interface Arsip {
-    id_arsip_aktif: string; // Primary Key
+    id_arsip_aktif: string;
     nomor_berkas: number;
     kode_klasifikasi: string;
     uraian_informasi: string;
     jumlah: number;
-    keterangan: string; // Sesuai skema: not null
+    keterangan: string;
     file_url: string | null;
-    user_id: string | null; // Sesuai skema: nullable
-    created_at: string | null; // Supabase returns ISO string
+    user_id: string | null;
+    created_at: string | null;
     tingkat_perkembangan: string | null;
     media_simpan: string | null;
-    tanggal_mulai: string | null; // Supabase returns ISO string for date
-    tanggal_berakhir: string | null; // Supabase returns ISO string for date
+    jangka_simpan: string | null;
+    tanggal_mulai: string | null;
+    tanggal_berakhir: string | null;
     masa_retensi: number | null;
-    kurun_waktu: string | null; // Sesuai skema: text
+    kurun_waktu: string | null;
     status_persetujuan: string;
-    lokasi_penyimpanan: { // Objek untuk data lokasi dari join
+    lokasi_penyimpanan: {
         no_filing_cabinet: string | null;
         no_laci: string | null;
         no_folder: string | null;
@@ -36,17 +37,16 @@ export default function VerifikasiArsip() {
     const supabase = createClient();
     const [arsipList, setArsipList] = useState<Arsip[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
-    const [dataLoading, setDataLoading] = useState(true); // Mengganti nama loading menjadi dataLoading
-    // Menggunakan id_arsip_aktif (string) untuk selectedArsipIds
+    const [dataLoading, setDataLoading] = useState(true);
     const [selectedArsipIds, setSelectedArsipIds] = useState<string[]>([]);
-    const [authLoading, setAuthLoading] = useState(true); // Loading untuk auth & role check
-    const [userNamaBidang, setUserNamaBidang] = useState<string | null>(null); // String nama bidang
-    const [userIdBidang, setUserIdBidang] = useState<number | null>(null); // ID bidang (integer)
+    const [authLoading, setAuthLoading] = useState(true);
+    // Hapus userNamaBidang, karena tidak digunakan
+    const [userIdBidang, setUserIdBidang] = useState<number | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
-    const [statusFilter, setStatusFilter] = useState("Menunggu"); // Default ke "Menunggu"
+    const [statusFilter, setStatusFilter] = useState("Menunggu");
 
-    const router = useRouter(); // Inisialisasi router
+    const router = useRouter();
 
     const ITEMS_PER_PAGE = 10;
     const ALLOWED_ROLE = "Kepala_Bidang";
@@ -54,61 +54,48 @@ export default function VerifikasiArsip() {
     const DEFAULT_HOME_PATH = "/";
 
     const fetchData = useCallback(async (idBidangKepala: number, page: number) => {
-        console.log(`fetchData (verifikasi): Called with idBidangKepala: ${idBidangKepala}, page: ${page}`);
         if (!idBidangKepala) {
-            console.log("fetchData (verifikasi): idBidangKepala is null, aborting.");
             setDataLoading(false);
             return;
         }
         setDataLoading(true);
 
-        // Langkah 1: Dapatkan semua id_lokasi dari lokasi_penyimpanan yang id_bidang_fkey-nya adalah idBidangKepala
-        console.log(`fetchData (verifikasi): Fetching lokasi_penyimpanan for id_bidang_fkey: ${idBidangKepala}`);
         const { data: lokasiDiBidang, error: lokasiError } = await supabase
             .from("lokasi_penyimpanan")
             .select("id_lokasi")
-            .eq("id_bidang_fkey", idBidangKepala); // <-- Gunakan id_bidang_fkey
+            .eq("id_bidang_fkey", idBidangKepala);
 
         if (lokasiError) {
             const message = lokasiError.message || "Gagal memuat data lokasi untuk bidang.";
             toast.error(message);
-            console.error("Error fetching lokasi di bidang (verifikasi):", lokasiError.message || lokasiError);
             setDataLoading(false);
             setArsipList([]);
             setTotalPages(0);
             return;
         }
-        console.log(`fetchData (verifikasi): Query result for lokasi_penyimpanan in id_bidang_fkey '${idBidangKepala}':`, lokasiDiBidang);
 
         const lokasiIdsDiBidang = lokasiDiBidang?.map(l => l.id_lokasi) || [];
-        console.log(`fetchData (verifikasi): Extracted lokasiIdsDiBidang:`, lokasiIdsDiBidang);
 
         if (lokasiIdsDiBidang.length === 0) {
-            console.warn(`fetchData (verifikasi): Tidak ada lokasi penyimpanan yang ditemukan untuk id_bidang_fkey ${idBidangKepala}. Tidak ada arsip yang akan diambil.`);
             setArsipList([]);
             setTotalPages(0);
             setDataLoading(false);
             return;
         }
 
-        // Langkah 2: Ambil arsip berdasarkan lokasiIdsDiBidang
         const startIndex = (page - 1) * ITEMS_PER_PAGE;
         const endIndex = startIndex + ITEMS_PER_PAGE - 1;
 
-        // Langkah Tambahan: Dapatkan ID arsip aktif yang sudah ada di pemindahan_arsip_link
         const { data: pemindahanLinks, error: pemindahanError } = await supabase
             .from('pemindahan_arsip_link')
             .select('id_arsip_aktif_fkey');
 
         if (pemindahanError) {
             toast.error("Gagal memuat data link pemindahan: " + pemindahanError.message);
-            // Pertimbangkan apakah akan menghentikan proses atau melanjutkan tanpa filter ini
-            // Untuk saat ini, kita lanjutkan saja, tapi log errornya.
-            console.error("Error fetching pemindahan_arsip_link:", pemindahanError);
         }
 
         const idsToExclude = pemindahanLinks?.map(link => link.id_arsip_aktif_fkey).filter(id => id != null) || [];
-        
+
         let query = supabase
             .from("arsip_aktif")
             .select(`
@@ -120,7 +107,7 @@ export default function VerifikasiArsip() {
                     no_folder
                 )
             `, { count: "exact" })
-            .in("id_lokasi_fkey", lokasiIdsDiBidang); // Filter berdasarkan id_lokasi_fkey
+            .in("id_lokasi_fkey", lokasiIdsDiBidang);
 
         if (statusFilter !== "all") {
             query = query.eq("status_persetujuan", statusFilter);
@@ -130,18 +117,15 @@ export default function VerifikasiArsip() {
             const idsToExcludeString = `(${idsToExclude.join(',')})`;
             query = query.not('id_arsip_aktif', 'in', idsToExcludeString);
         }
-        
-        query = query.order("nomor_berkas", { ascending: true }) // Atau created_at, tergantung kebutuhan
-                     .range(startIndex, endIndex);
-        
+
+        query = query.order("nomor_berkas", { ascending: true })
+            .range(startIndex, endIndex);
+
         const { data, error, count } = await query;
-        
-        console.log(`fetchData (verifikasi): arsip_aktif query (lokasiIds=${JSON.stringify(lokasiIdsDiBidang)}) - data:`, data, "count:", count, "error:", error);
 
         if (error) {
             const message = error.message || "Gagal memuat data arsip!";
             toast.error(message);
-            console.error("Error fetching data (verifikasi):", error.message || error);
             setArsipList([]);
             setTotalPages(0);
         } else {
@@ -149,17 +133,16 @@ export default function VerifikasiArsip() {
             setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE));
         }
         setDataLoading(false);
-    }, [supabase, ITEMS_PER_PAGE, statusFilter]); // Tambahkan statusFilter
+    }, [supabase, ITEMS_PER_PAGE, statusFilter]);
 
     useEffect(() => {
         const checkAuthAndFetchInitialData = async () => {
             setAuthLoading(true);
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-            if (sessionError || !session) { // Jika tidak ada sesi
-                console.log("checkAuthAndFetchInitialData: No session, redirecting to sign-in.");
+            if (sessionError || !session) {
                 router.push(SIGN_IN_PATH);
-                setAuthLoading(false); // Pastikan loading dihentikan
+                setAuthLoading(false);
                 return;
             }
 
@@ -168,17 +151,15 @@ export default function VerifikasiArsip() {
             let fetchedUserData: {
                 role: string;
                 id_bidang_fkey: number;
-                daftar_bidang: { nama_bidang: string } | null; // Kembali ke objek tunggal atau null
-            } | null = null; // Gunakan as unknown as saat set fetchedUserData jika perlu
+                daftar_bidang: { nama_bidang: string } | null;
+            } | null = null;
 
             try {
                 const { data: userData, error: userFetchError } = await supabase
                     .from("users")
-                    .select("role, id_bidang_fkey, daftar_bidang:id_bidang_fkey ( nama_bidang )") // Ambil id_bidang_fkey dan join
+                    .select("role, id_bidang_fkey, daftar_bidang:id_bidang_fkey ( nama_bidang )")
                     .eq("user_id", userId)
                     .single();
-                
-                console.log(`checkAuthAndFetchInitialData: User data for ${userId}:`, userData, "Error:", userFetchError);
 
                 if (userFetchError || !userData) {
                     toast.error("Gagal memverifikasi data pengguna.");
@@ -186,24 +167,23 @@ export default function VerifikasiArsip() {
                     setAuthLoading(false);
                     return;
                 }
-                
-                // Periksa kelengkapan data dengan asumsi daftar_bidang adalah objek
+
                 if (!userData.role ||
                     userData.id_bidang_fkey === null ||
-                    !userData.daftar_bidang || // Pastikan objek daftar_bidang ada (tidak null)
-                    typeof userData.daftar_bidang !== 'object' || // Pastikan itu objek
-                    Array.isArray(userData.daftar_bidang) || // Pastikan itu BUKAN array
-                    typeof (userData.daftar_bidang as { nama_bidang?: string }).nama_bidang !== 'string' // Akses aman ke nama_bidang
+                    !userData.daftar_bidang ||
+                    typeof userData.daftar_bidang !== 'object' ||
+                    Array.isArray(userData.daftar_bidang) ||
+                    typeof (userData.daftar_bidang as { nama_bidang?: string }).nama_bidang !== 'string'
                 ) {
                     toast.warn("Informasi peran atau bidang pengguna tidak lengkap.");
-                    router.push(SIGN_IN_PATH); 
+                    router.push(SIGN_IN_PATH);
                     setAuthLoading(false);
                     return;
                 }
                 userRole = userData.role;
                 fetchedUserData = userData as unknown as { role: string; id_bidang_fkey: number; daftar_bidang: { nama_bidang: string; } | null; };
 
-            } catch (error: any) {
+            } catch {
                 toast.error("Terjadi kesalahan saat verifikasi peran.");
                 router.push(SIGN_IN_PATH);
                 setAuthLoading(false);
@@ -211,54 +191,48 @@ export default function VerifikasiArsip() {
             }
 
             if (userRole !== ALLOWED_ROLE) {
-                console.log(`Redirecting to HOME because userRole ('${userRole}') !== ALLOWED_ROLE ('${ALLOWED_ROLE}')`);
                 toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
                 router.push(DEFAULT_HOME_PATH);
                 setAuthLoading(false);
                 return;
             }
-            
-            // Akses properti nama_bidang dari objek daftar_bidang
+
             if (fetchedUserData && fetchedUserData.daftar_bidang && typeof fetchedUserData.daftar_bidang.nama_bidang === 'string') {
-                setUserNamaBidang(fetchedUserData.daftar_bidang.nama_bidang);
+                // Hapus setUserNamaBidang (tidak digunakan)
                 setUserIdBidang(fetchedUserData.id_bidang_fkey);
-                console.log(`checkAuthAndFetchInitialData: User Nama Bidang set to: ${fetchedUserData.daftar_bidang.nama_bidang}, ID Bidang: ${fetchedUserData.id_bidang_fkey}`);
             } else {
                 toast.error("Gagal memproses data bidang pengguna setelah verifikasi.");
                 router.push(SIGN_IN_PATH);
             }
-            setAuthLoading(false); 
+            setAuthLoading(false);
         };
         checkAuthAndFetchInitialData();
-    }, [supabase, router, SIGN_IN_PATH, DEFAULT_HOME_PATH, ALLOWED_ROLE]); // Dependensi untuk useEffect otentikasi
+    }, [supabase, router, SIGN_IN_PATH, DEFAULT_HOME_PATH, ALLOWED_ROLE]);
 
     useEffect(() => {
-        // Sekarang fetchData dipanggil dengan userIdBidang (integer)
-        if (userIdBidang && !authLoading) { 
-            console.log(`useEffect (data fetch trigger): Calling fetchData with userIdBidang: ${userIdBidang}, currentPage: ${currentPage}`);
-            fetchData(userIdBidang, currentPage); 
-        } else if (!authLoading && !userIdBidang) { // Jika auth selesai tapi tidak ada userIdBidang
-            setDataLoading(false); // Hentikan loading data jika tidak ada ID bidang
+        if (userIdBidang && !authLoading) {
+            fetchData(userIdBidang, currentPage);
+        } else if (!authLoading && !userIdBidang) {
+            setDataLoading(false);
             setArsipList([]);
             setTotalPages(0);
         }
-    }, [userIdBidang, currentPage, fetchData, authLoading, statusFilter]); // Tambahkan statusFilter
-
+    }, [userIdBidang, currentPage, fetchData, authLoading, statusFilter]);
 
     const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
     }, []);
 
-    // Client-side search after data is fetched (and server-side filtered by status)
+    // Fix: Remove unused lowerSearchTerm
     const filteredArsip = useMemo(() => {
-        const lowerSearchTerm = searchTerm.toLowerCase();
         return arsipList.filter(arsip =>
             searchTerm === "" ||
-                (arsip.kode_klasifikasi?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                (arsip.uraian_informasi?.toLowerCase().includes(searchTerm.toLowerCase()))
+            (arsip.kode_klasifikasi?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (arsip.uraian_informasi?.toLowerCase().includes(searchTerm.toLowerCase()))
         );
     }, [arsipList, searchTerm]);
 
+    // Fix: Don't define but not use error in catch
     const updateStatus = async (status: string, arsipIds?: string[]) => {
         const idsToProcess = arsipIds ?? selectedArsipIds;
         if (idsToProcess.length === 0) {
@@ -267,7 +241,6 @@ export default function VerifikasiArsip() {
         }
 
         setDataLoading(true);
-        // Get arsip data first to access user_id for notifications
         const { data: arsipToUpdate, error: fetchError } = await supabase
             .from("arsip_aktif")
             .select("id_arsip_aktif, uraian_informasi, kode_klasifikasi, user_id")
@@ -275,28 +248,23 @@ export default function VerifikasiArsip() {
 
         if (fetchError || !arsipToUpdate || arsipToUpdate.length === 0) {
             toast.error("Gagal memuat data arsip untuk diupdate!");
-            console.error("Error fetching arsip data:", fetchError);
             setDataLoading(false);
             return;
         }
-        // Update status
-        const { error } = await supabase
+        const { error: updateError } = await supabase
             .from("arsip_aktif")
             .update({ status_persetujuan: status })
             .in("id_arsip_aktif", idsToProcess);
 
-        if (error) {
+        if (updateError) {
             toast.error("Gagal memperbarui status arsip!");
-            console.error("Error updating status:", error);
             setDataLoading(false);
         } else {
             toast.success(`Berhasil ${status.toLowerCase()} ${idsToProcess.length} arsip!`);
 
-            // Send notifications to users
             const { data: { user } } = await supabase.auth.getUser();
             const currentUserId = user?.id;
 
-            // Notifikasi ke pemilik arsip
             for (const arsip of arsipToUpdate) {
                 if (arsip.user_id && arsip.user_id !== currentUserId) {
                     const notificationTitle = `Status Arsip Aktif: ${status}`;
@@ -318,7 +286,6 @@ export default function VerifikasiArsip() {
             }
             setSelectedArsipIds([]);
         }
-        // setDataLoading(false) akan di-handle oleh fetchData
     };
 
     const handleNextPage = () => {
@@ -334,16 +301,13 @@ export default function VerifikasiArsip() {
     };
 
     if (authLoading) {
-        // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
-        // Ini akan berguna untuk re-fetch.
         return null;
     }
 
     return (
-        <div className="w-full h-full p-6"> {/* Consistent page padding */}
-            <div className="max-w-8xl mx-auto w-full h-full flex flex-col"> {/* Content wrapper */}
-                <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col"> {/* Main content card */}
-                    {/* Header */}
+        <div className="w-full h-full p-6">
+            <div className="max-w-8xl mx-auto w-full h-full flex flex-col">
+                <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col">
                     <div className="bg-primary/10 px-6 py-4 flex justify-between items-center rounded-lg">
                         <h2 className="text-2xl font-bold flex items-center gap-2 text-primary">
                             <FileCheck size={24} /> Verifikasi Arsip Aktif
@@ -360,7 +324,8 @@ export default function VerifikasiArsip() {
                                 </button>
                                 <button
                                     className="px-4 py-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-lg transition-all flex items-center gap-2 text-sm font-medium shadow-md hover:shadow-lg hover:shadow-destructive/30"
-                                    onClick={() => updateStatus("Ditolak")}                                    disabled={dataLoading || selectedArsipIds.length === 0}
+                                    onClick={() => updateStatus("Ditolak")}
+                                    disabled={dataLoading || selectedArsipIds.length === 0}
                                 >
                                     <XCircle size={18} />
                                     Tolak ({selectedArsipIds.length})
@@ -369,7 +334,6 @@ export default function VerifikasiArsip() {
                         )}
                     </div>
 
-                    {/* Filters */}
                     <div className="px-6 py-4 border-y border-border/50">
                         <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between">
                             <div className="flex items-center gap-4 flex-wrap">
@@ -400,7 +364,6 @@ export default function VerifikasiArsip() {
                         </div>
                     </div>
 
-                    {/* Table */}
                     <div className="p-6 flex-grow flex flex-col overflow-auto">
                         {dataLoading ? (
                             <LoadingSkeleton />
@@ -426,16 +389,15 @@ export default function VerifikasiArsip() {
                                                         className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                                                     />
                                                 </th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">No. Berkas</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kode</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Uraian</th>
-                                                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kurun Waktu</th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">No. Berkas</th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kode</th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Uraian</th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kurun Waktu</th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Jangka Simpan</th>
                                                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Jumlah</th>
                                                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tingkat Perk.</th>
-                                                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Media</th>
                                                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lokasi</th>
                                                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
-                                                {/* Kolom Aksi dihilangkan untuk konsistensi, aksi dilakukan via header */}
                                             </tr>
                                         </thead>
                                         <tbody className="bg-card divide-y divide-border">
@@ -456,26 +418,25 @@ export default function VerifikasiArsip() {
                                                             className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                                                         />
                                                     </td>
-                                                    <td className="px-4 py-3 text-sm whitespace-nowrap text-foreground">{arsip.nomor_berkas}</td>
-                                                    <td className="px-4 py-3 text-sm font-medium whitespace-nowrap text-foreground">{arsip.kode_klasifikasi}</td>
+                                                    <td className="px-4 py-3 text-sm text-center text-foreground">{arsip.nomor_berkas}</td>
+                                                    <td className="px-4 py-3 text-sm font-medium text-center text-foreground">{arsip.kode_klasifikasi}</td>
                                                     <td className="px-4 py-3 text-sm text-foreground max-w-xs truncate" title={arsip.uraian_informasi}>{arsip.uraian_informasi}</td>
-                                                    <td className="px-4 py-3 text-sm whitespace-nowrap text-foreground">{arsip.kurun_waktu || '-'}</td>
+                                                    <td className="px-4 py-3 text-sm text-center text-foreground">{arsip.kurun_waktu || '-'}</td>
+                                                    <td className="px-4 py-3 text-sm text-center text-foreground">{arsip.jangka_simpan || '-'}</td>
                                                     <td className="px-4 py-3 text-sm text-center text-foreground">{arsip.jumlah || '-'}</td>
                                                     <td className="px-4 py-3 text-sm text-center text-foreground">{arsip.tingkat_perkembangan || '-'}</td>
-                                                    <td className="px-4 py-3 text-sm text-center text-foreground">{arsip.media_simpan || '-'}</td>
                                                     <td className="px-4 py-3 text-sm text-center whitespace-nowrap text-foreground">
                                                         {`${arsip.lokasi_penyimpanan?.no_filing_cabinet || '-'}/` +
-                                                         `${arsip.lokasi_penyimpanan?.no_laci || '-'}/` +
-                                                         `${arsip.lokasi_penyimpanan?.no_folder || '-'}`}
+                                                            `${arsip.lokasi_penyimpanan?.no_laci || '-'}/` +
+                                                            `${arsip.lokasi_penyimpanan?.no_folder || '-'}`}
                                                     </td>
                                                     <td className="px-4 py-3 text-center">
-                                                        <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold leading-none ${
-                                                            arsip.status_persetujuan === "Disetujui"
+                                                        <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold leading-none ${arsip.status_persetujuan === "Disetujui"
                                                                 ? "bg-green-100 text-green-700 dark:bg-green-700/20 dark:text-green-400"
                                                                 : arsip.status_persetujuan === "Ditolak"
-                                                                ? "bg-red-100 text-red-700 dark:bg-red-700/20 dark:text-red-400"
-                                                                : "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/20 dark:text-yellow-400"
-                                                        }`}>
+                                                                    ? "bg-red-100 text-red-700 dark:bg-red-700/20 dark:text-red-400"
+                                                                    : "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/20 dark:text-yellow-400"
+                                                            }`}>
                                                             {arsip.status_persetujuan}
                                                         </span>
                                                     </td>
@@ -493,9 +454,8 @@ export default function VerifikasiArsip() {
                             </div>
                         )}
 
-                        {/* Pagination */}
                         {totalPages > 1 && (
-                            <div className="flex justify-between items-center mt-auto p-6 pt-0"> {/* Added mt-auto, adjusted padding */}
+                            <div className="flex justify-between items-center mt-auto p-6 pt-4">
                                 <button
                                     onClick={handlePrevPage}
                                     disabled={currentPage === 1 || dataLoading}

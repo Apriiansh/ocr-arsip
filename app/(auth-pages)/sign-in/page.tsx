@@ -28,9 +28,13 @@ export default function SignIn() {
       } else {
         setError(result.error || "Login gagal");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      let errorMessage = "Terjadi kesalahan saat login";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
       console.error("Sign in error:", err);
-      setError("Terjadi kesalahan saat login");
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

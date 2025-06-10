@@ -1,104 +1,88 @@
 <a href="https://demo-nextjs-with-supabase.vercel.app/">
-  <img alt="Next.js and Supabase Starter Kit - the fastest way to build apps with Next.js and Supabase" src="https://demo-nextjs-with-supabase.vercel.app/opengraph-image.png">
-  <h1 align="center">Next.js and Supabase Starter Kit</h1>
+  <img alt="crchive - Intelligent OCR Archive Management" src="https://demo-nextjs-with-supabase.vercel.app/opengraph-image.png">
+  <h1 align="center">crchive</h1>
 </a>
 
 <p align="center">
- The fastest way to build apps with Next.js and Supabase
+ <b>crchive</b> — Pengelolaan Arsip Dinamis by OCR & Next.js + Supabase
+</p>
+<p align="center">
+  <i>Dibuat oleh: Muhammad Apriyansah</i><br />
+  <i>Politeknik Negeri Sriwijaya, Jurusan Manajemen Informatika, Prodi D3 Manajemen Informatika</i>
+</p>
+<p align="center">
+  <i>Penelitian untuk Dinas Kearsipan Provinsi Sumatera Selatan</i>
 </p>
 
 <p align="center">
-  <a href="#features"><strong>Features</strong></a> ·
+  <a href="#fitur-unggulan"><strong>Fitur Unggulan</strong></a> ·
   <a href="#demo"><strong>Demo</strong></a> ·
-  <a href="#deploy-to-vercel"><strong>Deploy to Vercel</strong></a> ·
-  <a href="#clone-and-run-locally"><strong>Clone and run locally</strong></a> ·
-  <a href="#feedback-and-issues"><strong>Feedback and issues</strong></a>
-  <a href="#more-supabase-examples"><strong>More Examples</strong></a>
+  <a href="#deploy-ke-vercel"><strong>Deploy ke Vercel</strong></a> ·
+  <a href="#jalankan-lokal"><strong>Jalankan Lokal</strong></a> ·
+  <a href="#feedback"><strong>Feedback</strong></a> ·
+  <a href="#tentang-crchive"><strong>Tentang crchive</strong></a>
 </p>
 <br/>
 
-## Features
+---
 
-- Works across the entire [Next.js](https://nextjs.org) stack
-  - App Router
-  - Pages Router
-  - Middleware
-  - Client
-  - Server
-  - It just works!
-- supabase-ssr. A package to configure Supabase Auth to use cookies
-- Styling with [Tailwind CSS](https://tailwindcss.com)
-- Components with [shadcn/ui](https://ui.shadcn.com/)
-- Optional deployment with [Supabase Vercel Integration and Vercel deploy](#deploy-your-own)
-  - Environment variables automatically assigned to Vercel project
+## 🚀 Tentang crchive
 
-## Demo
+**crchive** adalah aplikasi manajemen arsip digital berbasis web dengan keunggulan teknologi OCR (Optical Character Recognition).  
+Aplikasi ini mempercepat proses pengarsipan dokumen fisik maupun digital, memudahkan pencarian, serta membantu pengelolaan arsip yang rapi, aman, dan modern.  
+Dikembangkan khusus untuk kebutuhan pengelolaan arsip instansi pemerintah, dengan sistem berbasis Next.js & Supabase.
 
-You can view a fully working demo at [demo-nextjs-with-supabase.vercel.app](https://demo-nextjs-with-supabase.vercel.app/).
+---
 
-## Deploy to Vercel
+## ✨ Fitur Unggulan
 
-Vercel deployment will guide you through creating a Supabase account and project.
+- **Ekstraksi Data Otomatis dengan OCR**  
+  Upload dokumen PDF, data penting langsung diekstrak otomatis tanpa input manual.
+- **Lokasi Penyimpanan Otomatis & Tersistem**  
+  Penentuan lokasi fisik (filing cabinet, laci, folder) secara otomatis dan transparan sesuai aturan pengarsipan.
+- **Manajemen Arsip Aktif & Inaktif**  
+  Arsip dapat dikelola berdasarkan status aktif/inaktif, kurun waktu, masa retensi, serta status pemindahan.
+- **Pencarian Arsip Cepat & Akurat**  
+  Cari arsip menggunakan metadata atau isi dokumen berkat teknologi OCR.
+- **Preview & Download Arsip Digital**  
+  Arsip digital dapat dipreview dan diunduh langsung melalui aplikasi.
+- **Draft Otomatis & Restore**  
+  Data form yang belum selesai otomatis tersimpan sebagai draft, bisa dilanjutkan kapan saja.
+- **Hak Akses & Autentikasi Aman**  
+  Sistem login berbasis Supabase Auth dengan pengelolaan hak akses pengguna.
+- **Notifikasi & Audit Trail**  
+  Pemberitahuan dan riwayat aktivitas untuk menjaga transparansi dan keamanan data arsip.
+- **UI Modern, Responsif & Mudah Digunakan**  
+  Desain berbasis Tailwind CSS dan shadcn/ui, nyaman di desktop maupun mobile.
+- **Integrasi Cloud Storage**  
+  Penyimpanan dokumen digital aman di Supabase Storage.
 
-After installation of the Supabase integration, all relevant environment variables will be assigned to the project so the deployment is fully functioning.
+---
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fwith-supabase&project-name=nextjs-with-supabase&repository-name=nextjs-with-supabase&demo-title=nextjs-with-supabase&demo-description=This+starter+configures+Supabase+Auth+to+use+cookies%2C+making+the+user%27s+session+available+throughout+the+entire+Next.js+app+-+Client+Components%2C+Server+Components%2C+Route+Handlers%2C+Server+Actions+and+Middleware.&demo-url=https%3A%2F%2Fdemo-nextjs-with-supabase.vercel.app%2F&external-id=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fwith-supabase&demo-image=https%3A%2F%2Fdemo-nextjs-with-supabase.vercel.app%2Fopengraph-image.png)
+## 👀 Demo
 
-The above will also clone the Starter kit to your GitHub, you can clone that locally and develop locally.
+🌐 [Lihat Demo crchive](https://ocr-arsip.vercel.app/)
 
-If you wish to just develop locally and not deploy to Vercel, [follow the steps below](#clone-and-run-locally).
+---
 
-## Clone and run locally
 
-1. You'll first need a Supabase project which can be made [via the Supabase dashboard](https://database.new)
+## 📋 Feedback & Isu
 
-2. Create a Next.js app using the Supabase Starter template npx command
+Temukan bug atau butuh fitur baru?  
+Laporkan di [GitHub Issues](https://github.com/Apriiansh27/ocr-arsip/issues) atau hubungi langsung pembuat.
 
-   ```bash
-   npx create-next-app --example with-supabase with-supabase-app
-   ```
+---
 
-   ```bash
-   yarn create next-app --example with-supabase with-supabase-app
-   ```
+## 🤝 Tentang crchive
 
-   ```bash
-   pnpm create next-app --example with-supabase with-supabase-app
-   ```
+**Dibuat oleh:**  
+**Muhammad Apriyansah**  
+Politeknik Negeri Sriwijaya  
+Jurusan Manajemen Informatika, Prodi D3 Manajemen Informatika
 
-3. Use `cd` to change into the app's directory
+**Aplikasi ini dikembangkan sebagai bagian dari penelitian untuk**  
+**Dinas Kearsipan Provinsi Sumatera Selatan**
 
-   ```bash
-   cd with-supabase-app
-   ```
+---
 
-4. Rename `.env.example` to `.env.local` and update the following:
-
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=[INSERT SUPABASE PROJECT URL]
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=[INSERT SUPABASE PROJECT API ANON KEY]
-   ```
-
-   Both `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` can be found in [your Supabase project's API settings](https://app.supabase.com/project/_/settings/api)
-
-5. You can now run the Next.js local development server:
-
-   ```bash
-   npm run dev
-   ```
-
-   The starter kit should now be running on [localhost:3000](http://localhost:3000/).
-
-6. This template comes with the default shadcn/ui style initialized. If you instead want other ui.shadcn styles, delete `components.json` and [re-install shadcn/ui](https://ui.shadcn.com/docs/installation/next)
-
-> Check out [the docs for Local Development](https://supabase.com/docs/guides/getting-started/local-development) to also run Supabase locally.
-
-## Feedback and issues
-
-Please file feedback and issues over on the [Supabase GitHub org](https://github.com/supabase/supabase/issues/new/choose).
-
-## More Supabase examples
-
-- [Next.js Subscription Payments Starter](https://github.com/vercel/nextjs-subscription-payments)
-- [Cookie-based Auth and the Next.js 13 App Router (free course)](https://youtube.com/playlist?list=PL5S4mPUpp4OtMhpnp93EFSo42iQ40XjbF)
-- [Supabase Auth and the Next.js App Router](https://github.com/supabase/supabase/tree/master/examples/auth/nextjs)
+> crchive - Membawa pengelolaan arsip ke era digital yang cerdas, cepat, dan modern.

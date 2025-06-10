@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, ChevronDown, ChevronRight, User, Settings, FileText, BarChart, Users, Home, Bell, LogOut } from "lucide-react"; // Archive icon is no longer needed
@@ -261,8 +262,6 @@ export default function Navbar() {
       const result = await signOutAction();
 
       if (result?.success !== false) {
-        // Logout berhasil atau tidak ada error
-        // Clear any client-side state if needed
         setUser(null);
         setUserRole(ROLES.PEGAWAI);
 
@@ -275,7 +274,7 @@ export default function Navbar() {
         router.push("/sign-in");
         router.refresh();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Unexpected error during logout:", error);
       // Tetap redirect ke login meskipun ada error
       router.push("/sign-in");
@@ -778,11 +777,14 @@ export default function Navbar() {
         <Link
           href="/"
           className="flex items-center gap-2 text-xl font-semibold text-primary-foreground hover:text-primary-foreground/80 transition-colors"
+          onClick={closeAllMenusAndDropdowns}
         >
-          <img 
+          <Image 
             src="/logosumsel.png" 
             alt="CrChive Logo" 
             className="h-10 w-8"
+            width={80}
+            height={80}
           />
           CrChive
         </Link>
