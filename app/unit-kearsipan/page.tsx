@@ -8,6 +8,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
+import Loading from "./loading";
 
 interface Stats {
     totalArsip: number;
@@ -402,7 +403,7 @@ function DashboardContent() {
     }, [checkAuth, fetchDashboardData]);
 
     if (authLoading || (dataLoading && !stats.totalArsip)) {
-        return null; // The loading.tsx will handle this
+        return <Loading />;
     }
 
     if (error) {

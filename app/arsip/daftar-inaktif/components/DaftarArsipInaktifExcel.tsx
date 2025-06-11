@@ -1,10 +1,9 @@
 import ExcelJS, { BorderStyle } from 'exceljs';
-import { ArsipInaktifRow } from '../daftar-inaktif/page'; // Pastikan path ini benar
+import { ArsipInaktifRow } from '../page'; 
 import { createClient } from '@/utils/supabase/client';
 
 interface ExportToExcelProps {
     data: ArsipInaktifRow[];
-    // Tidak memerlukan namaBidang atau userBidangId untuk arsip inaktif
 }
 
 // --- Constants for Styling ---
@@ -12,10 +11,9 @@ const FONT_ARIAL = 'Arial';
 const KOP_FONT_SIZE = 12;
 const TITLE_FONT_SIZE = 14;
 const SUB_TITLE_FONT_SIZE = 12;
-// const UNIT_PENGOLAH_FONT_SIZE = 10; // Tidak digunakan untuk inaktif
 const TABLE_HEADER_FONT_SIZE = 9;
 const TABLE_DATA_FONT_SIZE = 9;
-const HEADER_FILL_COLOR = 'FFE6E6E6'; // Light Gray
+const HEADER_FILL_COLOR = 'FFE6E6E6'; 
 
 const BORDER_THIN_STYLE: Partial<ExcelJS.Border> = { style: 'thin' as BorderStyle };
 const BORDER_MEDIUM_STYLE: Partial<ExcelJS.Border> = { style: 'medium' as BorderStyle };

@@ -3,13 +3,13 @@
 import { Suspense } from "react";
 import { useArsipAktifForm } from "./hooks/useArsipAktifForm";
 import ArsipAktifFormUI from "./components/ArsipAktifFormUI";
-import FormLoadingSkeleton from "./components/FormLoadingSkeleton"; 
+import Loading from "./loading";
 
 function ArsipAktifContent() {
   const formLogic = useArsipAktifForm();
 
   if (formLogic.authLoading || formLogic.ocrLoading) {
-    return <FormLoadingSkeleton />;
+    return <Loading />;
   } 
 
   return <ArsipAktifFormUI {...formLogic} />;
@@ -17,7 +17,7 @@ function ArsipAktifContent() {
 
 export default function FormArsipAktifPage() {
   return (
-    <Suspense fallback={<FormLoadingSkeleton />}>
+    <Suspense fallback={<Loading />}>
       <ArsipAktifContent />
     </Suspense>
   );

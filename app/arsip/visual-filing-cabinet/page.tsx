@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'react-toastify';
+import Loading from './loading';
 
 interface ArsipData {
   id_arsip_aktif: string;
@@ -292,9 +293,7 @@ export default function VisualisasiFiling() {
   };
 
   if (authLoading || loading) {
-    // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
-    // Ini akan berguna untuk re-fetch.
-    return null; 
+    return <Loading />; 
   }
 
   return (

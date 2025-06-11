@@ -481,10 +481,10 @@ export default function Navbar() {
                         }}
                         onMouseLeave={closeActiveSubmenuWithDelay}
                       >
-                        <Link href="/arsip/arsip-aktif/daftar-aktif" onClick={closeAllMenusAndDropdowns} className={getDropdownItemClass('/arsip/arsip-aktif/daftar-aktif')}>
+                        <Link href="/arsip/daftar-aktif" onClick={closeAllMenusAndDropdowns} className={getDropdownItemClass('/arsip/daftar-aktif')}>
                           Arsip Aktif
                         </Link>
-                        <Link href="/arsip/arsip-inaktif/daftar-inaktif" onClick={closeAllMenusAndDropdowns} className={getDropdownItemClass('/arsip/arsip-inaktif/daftar-inaktif')}>
+                        <Link href="/arsip/daftar-inaktif" onClick={closeAllMenusAndDropdowns} className={getDropdownItemClass('/arsip/daftar-inaktif')}>
                           Arsip Inaktif
                         </Link>
                       </div>
@@ -706,8 +706,8 @@ export default function Navbar() {
                 </button>
                 {mobileSubmenuOpen === 'daftar' && (
                   <div className="pl-6 space-y-1">
-                    <Link href="/arsip/arsip-aktif/daftar-aktif" onClick={closeAllMenusAndDropdowns} className={getMobileItemClass('/arsip/arsip-aktif/daftar-aktif')}>Arsip Aktif</Link>
-                    <Link href="/arsip/arsip-inaktif/daftar-inaktif" onClick={closeAllMenusAndDropdowns} className={getMobileItemClass('/arsip/arsip-inaktif/daftar-inaktif')}>Arsip Inaktif</Link>
+                    <Link href="/arsip/daftar-aktif" onClick={closeAllMenusAndDropdowns} className={getMobileItemClass('/arsip/daftar-aktif')}>Arsip Aktif</Link>
+                    <Link href="/arsip/daftar-inaktif" onClick={closeAllMenusAndDropdowns} className={getMobileItemClass('/arsip/daftar-inaktif')}>Arsip Inaktif</Link>
                   </div>
                 )}
 

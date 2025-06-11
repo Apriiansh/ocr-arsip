@@ -14,6 +14,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { UserRole, Jabatan, DaftarBidang, UserProfile } from "./types";
 import { ManageUserSkeleton } from "./components/ManageUserSkeleton";
+import Loading from "../loading";
 
 const initialFormData = {
     nama: "",
@@ -200,7 +201,7 @@ export default function ManageUsersPage() {
     };
 
     if (loading && users.length === 0 && daftarBidang.length === 0) {
-        return <ManageUserSkeleton />;
+        return <Loading />;
     }
 
     return (

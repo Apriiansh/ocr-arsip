@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { sendUserNotification } from "@/utils/notificationService";
 import { LoadingSkeleton } from "./components/VerifikasiArsipSkeleton";
 import { ChevronLeft, ChevronRight, Search, CheckCircle2, XCircle, FileCheck, Box, Filter } from "lucide-react";
+import Loading from "../loading";
 
 interface Arsip {
     id_arsip_aktif: string;
@@ -301,7 +302,7 @@ export default function VerifikasiArsip() {
     };
 
     if (authLoading) {
-        return null;
+        return <Loading />;
     }
 
     return (

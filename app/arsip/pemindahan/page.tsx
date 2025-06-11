@@ -14,6 +14,7 @@ import { ApprovalStatus } from "./components/ApprovalStatus";
 import { SuccessConfirmation } from "./components/SuccessConfirmation";
 import { PemindahanLoadingSkeleton } from "./components/LoadingSkeleton";
 import { sendDepartmentHeadNotification, sendRoleNotification } from "@/utils/notificationService";
+import Loading from "./loading";
 
 export default function PemindahanArsip() {
 	const supabase = createClient();
@@ -1220,16 +1221,7 @@ export default function PemindahanArsip() {
 	};
 
 	if (authLoading) {
-		// Wrapper untuk skeleton agar konsisten dengan halaman lain
-		return (
-			<div className="w-full h-full p-6">
-				<div className="max-w-7xl mx-auto w-full h-full flex flex-col">
-					<div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col">
-						<PemindahanLoadingSkeleton />
-					</div>
-				</div>
-			</div>
-		);
+		return <Loading />;
 	}
 
 	return (

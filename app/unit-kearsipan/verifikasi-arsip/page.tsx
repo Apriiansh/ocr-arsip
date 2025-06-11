@@ -7,6 +7,7 @@ import { FileCheck, CheckCircle2, XCircle, Search, Filter, Box } from "lucide-re
 import { toast } from "react-toastify";
 import { sendUserNotification } from "@/utils/notificationService";
 import { LoadingSkeleton } from "./components/VerifikasiArsipSkeleton";
+import Loading from "../loading";
 
 interface ArsipInaktif {
     id_arsip_inaktif: string;
@@ -212,7 +213,7 @@ export default function VerifikasiArsipInaktif() {
         return <span className="opacity-0 group-hover:opacity-50 transition-opacity">↕</span>;
     };
     if (authLoading) {
-        return null;
+        return <Loading />;
     }
 
     return (

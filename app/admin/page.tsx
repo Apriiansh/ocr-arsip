@@ -13,6 +13,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
+import Loading from "./loading";
 
 interface UserActivityStat {
     name: string;
@@ -309,13 +310,7 @@ function AdminDashboardContent() {
     }, [checkAuth, fetchDashboardData]);
 
     if (authLoading) {
-        return (
-            <div className="bg-background p-6 w-full h-full">
-                <div className="max-w-screen-2xl mx-auto h-full flex items-center justify-center">
-                    <LoadingSkeleton />
-                </div>
-            </div>
-        );
+        return <Loading />
     }
 
     if (error) {

@@ -6,7 +6,8 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Search, Trash2, Eye, ArchiveRestore, FolderArchive, FileSpreadsheet } from "lucide-react"; // Tambahkan FileSpreadsheet
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
-import { exportArsipInaktifToExcel } from '../components/DaftarArsipInaktifExcel'; // Impor fungsi ekspor
+import { exportArsipInaktifToExcel } from './components/DaftarArsipInaktifExcel'; // Impor fungsi ekspor
+import Loading from "./loading";
 
 export interface ArsipInaktifRow {
   id_arsip_inaktif: string;
@@ -22,7 +23,7 @@ export interface ArsipInaktifRow {
   jangka_simpan: number | null;
   nasib_akhir: string | null;
   kategori_arsip: string | null;
-  tanggal_pindah: string | null; // Date as string
+  tanggal_pindah: string | null;
   file_url: string | null;
   status_persetujuan: string | null;
 }
@@ -242,8 +243,6 @@ export default function DaftarArsipInaktif() {
       toast.error("Terjadi kesalahan saat menata ulang arsip inaktif: " + error.message);
     } finally {
       setIsReordering(false);
-      // Panggil fetchData untuk refresh data pada halaman saat ini.
-      // Pastikan fetchData dipanggil setelah authLoading selesai jika ada dependensi.
       if (!authLoading) {
         fetchData();
       } else {
@@ -252,15 +251,8 @@ export default function DaftarArsipInaktif() {
     }
   };
 
-  // Tampilkan skeleton jika authLoading atau loading (untuk data tabel) true
   if (authLoading || loading) {
-    // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
-    // Ini akan berguna untuk re-fetch (misalnya saat paginasi).
-    // Untuk konsistensi, kita bisa merender null jika loading.tsx sudah menangani skeleton utama.
-    // Atau, jika Anda ingin skeleton spesifik untuk re-fetch, Anda bisa merender TableLoadingSkeleton di sini.
-    // Saya akan mengembalikan null untuk saat ini, dengan asumsi loading.tsx menangani initial load.
-    // Jika Anda ingin skeleton saat paginasi, Anda bisa mengembalikan <TableLoadingSkeleton /> di sini.
-    return null; 
+    return <Loading />;
   }
 
   return (

@@ -53,7 +53,7 @@ export function SuccessConfirmation({
 
             <div className="flex flex-col sm:flex-row justify-center gap-4"> {/* Use flex-col on small screens */}
                 <button
-                    onClick={() => router.push("/arsip/arsip-inaktif/daftar-inaktif")}
+                    onClick={() => router.push("/arsip/daftar-inaktif")}
                     className="px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 flex items-center justify-center gap-2 text-sm font-medium transition-colors duration-200"
                 >
                     <FolderOpen size={18} />

@@ -6,7 +6,8 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Search, Trash2, Eye, FileText, FolderOpen, Filter, Archive, FileSpreadsheet } from "lucide-react"; // Tambahkan FileSpreadsheet
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
-import { exportArsipAktifToExcel } from '../components/DaftarArsipAktifExcel'; // Path ke komponen baru
+import { exportArsipAktifToExcel } from './components/DaftarArsipAktifExcel';
+import Loading from "./loading";
 
 interface LokasiPenyimpanan {
   id_bidang_fkey: number;
@@ -411,16 +412,8 @@ export default function DaftarArsipAktif() {
     }
   };
   
-  // Tampilkan skeleton jika authLoading atau loading (untuk data tabel) true
   if (authLoading || loading) {
-    // Wrapper untuk skeleton agar konsisten dengan halaman lain
-    // Tidak perlu merender TableLoadingSkeleton di sini lagi jika loading.tsx sudah ada
-    // dan Suspense digunakan di level atas.
-    // Namun, jika Anda ingin skeleton spesifik saat data di-refetch (loading=true tapi authLoading=false),
-    // Anda bisa mengembalikannya di sini. Untuk loading awal, loading.tsx akan menangani.
-    // Untuk konsistensi dengan loading.tsx, kita bisa merender null atau skeleton yang lebih sederhana
-    // jika loading.tsx sudah menangani skeleton utama.
-    return null; // Atau skeleton yang lebih minimal jika diperlukan untuk re-fetch
+    return <Loading />;
   }
 
   return (

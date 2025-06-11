@@ -1,6 +1,5 @@
 "use client";
 
-// Skeleton Component dipindahkan ke sini
 const TableLoadingSkeleton = () => {
     return (
         <>

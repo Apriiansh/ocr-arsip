@@ -1,5 +1,5 @@
 import ExcelJS, { BorderStyle } from 'exceljs';
-import { ArsipRow } from '../daftar-aktif/page';
+import { ArsipRow } from '../page';
 import { createClient } from '@/utils/supabase/client';
 
 interface LokasiPenyimpananExcel {

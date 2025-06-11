@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Search, Eye, FileText, Filter, AlertTriangle
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { differenceInDays, parse } from "date-fns";
+import Loading from "./loading";
 
 interface ArsipRetensiRow {
     id_arsip_aktif: string;
@@ -226,9 +227,7 @@ export default function RetensiArsipPage() {
     };
 
     if (authLoading || (loading && allArsip.length === 0)) {
-        // Jika loading.tsx ada, ini tidak akan ditampilkan pada initial load.
-        // Ini akan berguna untuk re-fetch.
-        return null; 
+        return <Loading />; 
     }
 
     return (

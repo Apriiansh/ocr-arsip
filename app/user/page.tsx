@@ -10,6 +10,7 @@ import { toast } from "react-toastify";
 import { Bell, ArrowRight, X as LucideX, Eye } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
+import Loading from "./loading";
 
 interface Stats {
     totalArsip: number;
@@ -627,7 +628,7 @@ function DashboardContent() {
     }, [retentionAlerts, router]);
 
     if (authLoading || (dataLoading && !stats.totalArsip)) {
-        return null; // The loading.tsx will handle this
+        return <Loading />;
     }
 
     if (error) {
