@@ -59,7 +59,7 @@ export default function SignIn() {
           <input
             name="email"
             type="email"
-            placeholder="you@example.com"
+            placeholder="emailname@email.com"
             className="w-full px-4 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground transition-colors duration-300"
             required
           />

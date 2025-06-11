@@ -174,7 +174,7 @@ function RecentArchives({ archives, totalArchives }: { archives: ArsipData[], to
 
             {totalArchives > 5 && (
                 <Link
-                    href="/arsip/arsip-aktif/daftar-aktif"
+                    href="/unit-pengolah/verifikasi-arsip"
                     className="text-sm text-primary hover:underline mt-4 inline-block"
                 >
                     Lihat Selengkapnya...

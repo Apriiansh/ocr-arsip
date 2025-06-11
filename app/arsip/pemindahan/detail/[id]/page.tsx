@@ -452,18 +452,18 @@ export default function PemindahanDetailPage() {
 
     const sortedArsipDetails = detail.combined_arsip_details
         ? [...detail.combined_arsip_details].sort((a, b) => {
-            const numA = parseInt(a.nomor_berkas, 10);
-            const numB = parseInt(b.nomor_berkas, 10);
+            const nomorBerkasA = parseInt(a.nomor_berkas, 10);
+            const nomorBerkasB = parseInt(b.nomor_berkas, 10);
             const klasA = a.kode_klasifikasi.toLowerCase();
             const klasB = b.kode_klasifikasi.toLowerCase();
             const jenisA = a.jenis_arsip.toLowerCase();
             const jenisB = b.jenis_arsip.toLowerCase();
 
+            if (nomorBerkasA < nomorBerkasB) return -1;
+            if (nomorBerkasA > nomorBerkasB) return 1;
             if (klasA < klasB) return -1;
             if (klasA > klasB) return 1;
-            if (jenisA < jenisB) return -1;
-            if (jenisA > jenisB) return 1;
-            return numA - numB;
+            return jenisA.localeCompare(jenisB);
         })
         : [];
 

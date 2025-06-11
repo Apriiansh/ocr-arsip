@@ -6,7 +6,7 @@ import { ChevronLeft, ArrowRight, Save, FolderOpen, CheckCircle2, RefreshCw } fr
 import { createClient } from "@/utils/supabase/client"; // Import SupabaseClient
 import { toast } from "react-toastify";
 import { ArsipAktif, BeritaAcara, PemindahanInfo, ApprovalStatus as IApprovalStatus, ProcessStatus } from "./types";
-import { ALLOWED_ROLES, SIGN_IN_PATH, DEFAULT_HOME_PATH, getISODateString, calculateRetentionExpired, formatDate } from "./utils";
+import { ALLOWED_ROLES, SIGN_IN_PATH, DEFAULT_HOME_PATH, getISODateString, calculateRetentionExpired, formatDate, kodeKlasifikasiCompare } from "./utils";
 import { SelectArsip } from "./components/SelectArsip";
 import { BeritaAcaraForm } from "./components/BeritaAcaraForm";
 import { PemindahanForm } from "./components/PemindahanForm";
@@ -286,20 +286,11 @@ export default function PemindahanArsip() {
 				}
 			});
 
-			// Log untuk debugging
-			// console.log("[PEMINDAHAN LOG] Unique Base Kode Klasifikasi:", uniqueBaseKodeKlasifikasi);
-			// console.log("[PEMINDAHAN LOG] Klasifikasi Map (seharusnya objek Map):", klasifikasiMap); // Periksa output ini dengan seksama
 			console.log("[PEMINDAHAN LOG] Arsip with Retention (and label):", arsipWithRetention);
 
-			// Urutkan arsipWithRetention berdasarkan kode_klasifikasi saja (hapus jenis_arsip_label)
-			const sortedArsipWithRetention = [...arsipWithRetention].sort((a, b) => {
-				const klasA = a.kode_klasifikasi.toLowerCase();
-				const klasB = b.kode_klasifikasi.toLowerCase();
-
-				if (klasA < klasB) return -1;
-				if (klasA > klasB) return 1;
-				return 0;
-			});
+			const sortedArsipWithRetention = [...arsipWithRetention].sort((a, b) =>
+				kodeKlasifikasiCompare(a.kode_klasifikasi, b.kode_klasifikasi)
+			  );
 
 			let filteredData = sortedArsipWithRetention;
 
@@ -931,7 +922,34 @@ export default function PemindahanArsip() {
 			const arsipEditsMap = Array.isArray(pemindahanInfo.arsip_edits)
 				? Object.fromEntries(pemindahanInfo.arsip_edits.map(e => [e.id_arsip_aktif, e]))
 				: {};
-			const arsipInaktifData = selectedArsip.map(arsip => {
+			
+			const finalArsipInaktifData: any[] = [];
+
+			// Sort all selectedArsip globally for consistent numbering
+			const sortedSelectedArsip = [...selectedArsip].sort((a, b) => {
+				const klasComparison = kodeKlasifikasiCompare(a.kode_klasifikasi, b.kode_klasifikasi);
+				if (klasComparison !== 0) return klasComparison;
+
+				if (a.kurun_waktu < b.kurun_waktu) return -1;
+				if (a.kurun_waktu > b.kurun_waktu) return 1;
+				
+				// Compare nomor_berkas as numbers if they are numeric, otherwise as strings
+				const numA = Number(a.nomor_berkas);
+				const numB = Number(b.nomor_berkas);
+				if (!isNaN(numA) && !isNaN(numB)) {
+					if (numA < numB) return -1;
+					if (numA > numB) return 1;
+				} else {
+					const nomorBerkasComparison = a.nomor_berkas.toString().localeCompare(b.nomor_berkas.toString());
+					if (nomorBerkasComparison !== 0) return nomorBerkasComparison;
+				}
+				
+				return a.id_arsip_aktif.localeCompare(b.id_arsip_aktif); // Final stable sort
+			});
+
+			sortedSelectedArsip.forEach((arsip, index) => {
+				const newNomorBerkas = (index + 1).toString(); // New sequential nomor_berkas
+
 				const klasData = arsip.retensi_data; // Bisa null
 				const edit = arsipEditsMap[arsip.id_arsip_aktif] || {};
 
@@ -955,24 +973,23 @@ export default function PemindahanArsip() {
 				
 				const nasibAkhir = edit.nasib_akhir_edited ?? (arsip as any).nasib_akhir_edited ?? klasData?.nasib_akhir ?? "";
 
-				// Validasi penting: Jika retensi_data tidak ada atau field editan kosong, maka field editan harus diisi
+				// Validasi penting
 				if (!jenisArsip) {
-					throw new Error(`Jenis arsip wajib diisi untuk arsip ${arsip.nomor_berkas} (Kode: ${arsip.kode_klasifikasi}).`);
+					throw new Error(`Jenis arsip wajib diisi untuk arsip ID ${arsip.id_arsip_aktif} (Kode: ${arsip.kode_klasifikasi}, No. Berkas Asli: ${arsip.nomor_berkas}).`);
 				}
 				if (typeof masaRetensiInaktifVal === 'undefined' || masaRetensiInaktifVal < 0) {
-					throw new Error(`Masa retensi inaktif wajib diisi dan valid untuk arsip (Kode: ${arsip.kode_klasifikasi}).`);
+					throw new Error(`Masa retensi inaktif wajib diisi dan valid untuk arsip ID ${arsip.id_arsip_aktif} (Kode: ${arsip.kode_klasifikasi}, No. Berkas Asli: ${arsip.nomor_berkas}).`);
 				}
 				if (!nasibAkhir) {
-					throw new Error(`Nasib akhir wajib diisi untuk arsip (Kode: ${arsip.kode_klasifikasi}).`);
+					throw new Error(`Nasib akhir wajib diisi untuk arsip ID ${arsip.id_arsip_aktif} (Kode: ${arsip.kode_klasifikasi}, No. Berkas Asli: ${arsip.nomor_berkas}).`);
 				}
-
 
 				// Hitung kurun_waktu_inaktif_mulai dan kurun_waktu_inaktif_berakhir
 				let kurunWaktuInaktifMulaiStr: string | null = null;
 				let kurunWaktuInaktifBerakhirStr: string | null = null;
 
 				if (arsip.jangka_simpan && typeof masaRetensiInaktifVal === 'number' && masaRetensiInaktifVal >= 0) {
-					const parts = arsip.jangka_simpan.split(" s.d. "); // jangka_simpan dari arsip_aktif
+					const parts = arsip.jangka_simpan.split(" s.d. ");
 					const endDateAktifStrDMY = parts.length > 1 ? parts[1] : parts[0];
 
 					if (endDateAktifStrDMY) {
@@ -981,45 +998,39 @@ export default function PemindahanArsip() {
 							const yearAktifEnd = parseInt(datePartsDMY[2], 10);
 							if (!isNaN(yearAktifEnd)) {
 								const tahunMulaiInaktif = yearAktifEnd + 1;
-								const tanggalMulaiInaktif = new Date(tahunMulaiInaktif, 0, 1); // 1 Januari
-								console.log("[DATE DEBUG] tanggalMulaiInaktif Object:", tanggalMulaiInaktif, "String:", tanggalMulaiInaktif.toString());
-								// Langsung format ke DD-MM-YYYY untuk menghindari masalah timezone
+								const tanggalMulaiInaktif = new Date(tahunMulaiInaktif, 0, 1);
 								kurunWaktuInaktifMulaiStr = formatDate(tanggalMulaiInaktif); 
 
 								const tahunBerakhirInaktif = tahunMulaiInaktif + masaRetensiInaktifVal - 1;
-								const tanggalBerakhirInaktif = new Date(tahunBerakhirInaktif, 11, 31); // 31 Desember
-								console.log("[DATE DEBUG] tanggalBerakhirInaktif Object:", tanggalBerakhirInaktif, "String:", tanggalBerakhirInaktif.toString());
-								// Langsung format ke DD-MM-YYYY
+								const tanggalBerakhirInaktif = new Date(tahunBerakhirInaktif, 11, 31);
 								kurunWaktuInaktifBerakhirStr = formatDate(tanggalBerakhirInaktif);
-								console.log("[DATE DEBUG] Formatted Inactive Start:", kurunWaktuInaktifMulaiStr, "End:", kurunWaktuInaktifBerakhirStr);
 							}
 						}
 					}
 				}
 
-				// Bentuk string periode inaktif untuk disimpan di kolom jangka_simpan
 				let periodeInaktifDisplay = "-"; 
-				const formattedMulaiInaktif = kurunWaktuInaktifMulaiStr; // Sudah dalam format DD-MM-YYYY
-				const formattedBerakhirInaktif = kurunWaktuInaktifBerakhirStr; // Sudah dalam format DD-MM-YYYY
+				const formattedMulaiInaktif = kurunWaktuInaktifMulaiStr;
+				const formattedBerakhirInaktif = kurunWaktuInaktifBerakhirStr;
 
 				if (formattedMulaiInaktif && formattedBerakhirInaktif) {
 					periodeInaktifDisplay = `${formattedMulaiInaktif} s.d. ${formattedBerakhirInaktif}`;
-				} else if (formattedMulaiInaktif) { // Fallback jika hanya tanggal mulai yang ada
+				} else if (formattedMulaiInaktif) {
 					periodeInaktifDisplay = formattedMulaiInaktif;
 				}
 
-				return {
-					nomor_berkas: arsip.nomor_berkas,
+				finalArsipInaktifData.push({
+					nomor_berkas: newNomorBerkas, // Menggunakan nomor berkas baru
 					kode_klasifikasi: arsip.kode_klasifikasi,
 					jenis_arsip: jenisArsip,
-					kurun_waktu: arsip.kurun_waktu, // Menyimpan kurun waktu penciptaan dari arsip aktif
-					jangka_simpan: periodeInaktifDisplay, // Menyimpan periode/jangka simpan inaktif
+					kurun_waktu: arsip.kurun_waktu,
+					jangka_simpan: periodeInaktifDisplay,
 					tingkat_perkembangan: arsip.tingkat_perkembangan,
 					jumlah: arsip.jumlah,
 					keterangan: arsip.keterangan,
 					nomor_definitif_folder_dan_boks: pemindahanInfo.nomor_boks,
 					lokasi_simpan: pemindahanInfo.lokasi_simpan,
-					masa_retensi: masaRetensiInaktifVal, // Menyimpan durasi/masa retensi inaktif (tahun)
+					masa_retensi: masaRetensiInaktifVal,
 					nasib_akhir: nasibAkhir,
 					kategori_arsip: pemindahanInfo.kategori_arsip,
 					id_arsip_aktif: arsip.id_arsip_aktif,
@@ -1028,12 +1039,12 @@ export default function PemindahanArsip() {
 					user_id: userId,
 					status_persetujuan: "Menunggu",
 					id_berita_acara: beritaAcaraId,
-				};
+				});
 			});
 
 			const { data: newInactiveArsip, error: inaktifError } = await supabase
 				.from("arsip_inaktif")
-				.insert(arsipInaktifData)
+				.insert(finalArsipInaktifData) // Menggunakan data yang sudah diproses
 				.select("*"); // Diubah sementara untuk debugging
 
 			console.log("[PEMINDAHAN LOG] newInactiveArsip (raw from select '*'):", newInactiveArsip);

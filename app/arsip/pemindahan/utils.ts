@@ -67,3 +67,15 @@ export function calculateRetentionExpired(arsip: ArsipAktif, klasifikasiData: Kl
     // Arsip dianggap kedaluwarsa (retensi aktifnya berakhir) jika tanggal saat ini telah melewati tanggal akhir periode aktif.
     return currentDate > endDate;
 } 
+
+export function kodeKlasifikasiCompare(a: string, b: string) {
+    const segA = a.split('.').map(Number);
+    const segB = b.split('.').map(Number);
+    const len = Math.max(segA.length, segB.length);
+    for (let i = 0; i < len; i++) {
+        const numA = segA[i] ?? 0;
+        const numB = segB[i] ?? 0;
+        if (numA !== numB) return numA - numB;
+    }
+    return 0;
+}

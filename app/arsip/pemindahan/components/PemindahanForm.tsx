@@ -1,7 +1,7 @@
 import React from "react";
 import { FolderOpen, AlertTriangle } from "lucide-react";
 import { ArsipAktif, PemindahanInfo } from "../types";
-import { formatDate } from "../utils"; // Impor formatDate
+import { formatDate, kodeKlasifikasiCompare } from "../utils"; // Impor formatDate dan kodeKlasifikasiCompare
 
 interface PemindahanFormProps {
     selectedArsip: ArsipAktif[]; // Asumsikan ArsipAktif dapat memiliki field seperti jenis_arsip_edited, inaktif_edited, nasib_akhir_edited
@@ -16,11 +16,29 @@ export function PemindahanForm({
     onChangePemindahanInfo,
     onArsipFieldChange
 }: PemindahanFormProps) {
-    // Urutkan selectedArsip berdasarkan nomor_berkas (numerik)
+    // Urutkan selectedArsip secara global untuk penomoran yang konsisten di form
     const sortedSelectedArsip = [...selectedArsip].sort((a, b) => {
-        const numA = Number(a.nomor_berkas);
-        const numB = Number(b.nomor_berkas);
-        return numA - numB;
+        const klasComparison = kodeKlasifikasiCompare(a.kode_klasifikasi, b.kode_klasifikasi);
+        if (klasComparison !== 0) return klasComparison;
+
+        // Kurun waktu bisa berupa string tahun "YYYY" atau rentang "YYYY-YYYY"
+        // Untuk perbandingan sederhana, kita ambil tahun awal
+        const kurunWaktuA = a.kurun_waktu.split('-')[0];
+        const kurunWaktuB = b.kurun_waktu.split('-')[0];
+        if (kurunWaktuA < kurunWaktuB) return -1;
+        if (kurunWaktuA > kurunWaktuB) return 1;
+        
+        const numA = Number(a.nomor_berkas); // Nomor berkas asli
+        const numB = Number(b.nomor_berkas); // Nomor berkas asli
+        if (!isNaN(numA) && !isNaN(numB)) {
+            if (numA < numB) return -1;
+            if (numA > numB) return 1;
+        } else {
+            const nomorBerkasComparison = a.nomor_berkas.toString().localeCompare(b.nomor_berkas.toString());
+            if (nomorBerkasComparison !== 0) return nomorBerkasComparison;
+        }
+        
+        return a.id_arsip_aktif.localeCompare(b.id_arsip_aktif); // Final stable sort
     });
 
     // Fungsi untuk menghitung dan memformat periode inaktif
@@ -62,7 +80,7 @@ export function PemindahanForm({
                 <table className="min-w-full text-sm">
                     <thead className="bg-muted">
                         <tr>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Nomor Berkas</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-[5%]">No. Berkas</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Kode Klasifikasi</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/6">Jenis Arsip (Edit)</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Kurun Waktu Penciptaan</th>
@@ -76,7 +94,7 @@ export function PemindahanForm({
                     <tbody>
                         {sortedSelectedArsip.map((arsip, idx) => (
                             <tr key={arsip.id_arsip_aktif} className="even:bg-muted/20">
-                                <td className="px-2 py-1 border">{arsip.nomor_berkas}</td>
+                                <td className="px-2 py-1 border text-center">{idx + 1}</td> {/* Menampilkan nomor urut baru */}
                                 <td className="px-2 py-1 border">{arsip.kode_klasifikasi}</td>
                                 <td className="px-2 py-1 border">
                                     <input
