@@ -310,7 +310,7 @@ export const exportLaporanArsipAktifKepalaDinasToExcel = async ({ data, periodeL
         }, 100);
 
         console.log('Export completed successfully');
-        toast.success(`Export berhasil! ${semuaBidang.length} bidang diproses (termasuk yang kosong, mengecualikan Sekretariat)`);
+        toast.success(`Export berhasil! ${semuaBidang.length} bidang`);
 
     } catch (error) {
         console.error('Export error:', error);
@@ -514,6 +514,20 @@ async function createSummarySheet(
     nipCell.value = kepalaDinasInfo ? `NIP. ${kepalaDinasInfo.nip}` : "NIP. KEPALA DINAS";
     nipCell.font = { name: FONT_ARIAL, size: TABLE_DATA_FONT_SIZE };
     nipCell.alignment = { horizontal: 'center' };
+
+    // Tambahkan Waktu Unduh di kiri bawah, sejajar dengan NIP
+    const downloadTime = new Date();
+    // Format tanggal dan waktu yang lebih lengkap
+    const formattedDateForTimestamp = downloadTime.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+    const formattedTimeForTimestamp = downloadTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const downloadTimestampText = `Waktu Unduh: ${formattedDateForTimestamp}, ${formattedTimeForTimestamp} WIB`;
+
+    // Merge kolom A, B, C untuk ruang yang cukup
+    worksheet.mergeCells(currentRow, 2, currentRow, 3); // Merge A, B, C di baris NIP
+    const downloadTimeCell = worksheet.getCell(currentRow, 2); // Ambil sel A di baris NIP
+    downloadTimeCell.value = downloadTimestampText;
+    downloadTimeCell.font = { name: FONT_ARIAL, size: TABLE_DATA_FONT_SIZE - 1, italic: true }; // Sedikit lebih kecil dan miring
+    downloadTimeCell.alignment = { horizontal: 'left', vertical: 'middle' };
 
     worksheet.columns = summaryColumns;
 }

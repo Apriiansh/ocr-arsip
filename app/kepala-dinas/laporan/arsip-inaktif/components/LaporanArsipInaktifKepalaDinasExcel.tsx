@@ -239,6 +239,20 @@ export const exportLaporanArsipInaktifKepalaDinasToExcel = async ({ data, period
     nipCell.font = { name: FONT_ARIAL, size: TABLE_DATA_FONT_SIZE };
     nipCell.alignment = { horizontal: 'center' };
 
+    // Tambahkan Waktu Unduh di kiri bawah, sejajar dengan NIP
+    const downloadTime = new Date();
+    // Format tanggal dan waktu yang lebih lengkap
+    const formattedDateForTimestamp = downloadTime.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+    const formattedTimeForTimestamp = downloadTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const downloadTimestampText = `Waktu Unduh: ${formattedDateForTimestamp}, ${formattedTimeForTimestamp} WIB`;
+
+    // Merge kolom A, B, C untuk ruang yang cukup (kolom 1, 2, 3)
+    worksheet.mergeCells(currentRow, 1, currentRow, 3); 
+    const downloadTimeCell = worksheet.getCell(currentRow, 1); // Ambil sel A di baris NIP
+    downloadTimeCell.value = downloadTimestampText;
+    downloadTimeCell.font = { name: FONT_ARIAL, size: TABLE_DATA_FONT_SIZE - 1, italic: true }; // Sedikit lebih kecil dan miring
+    downloadTimeCell.alignment = { horizontal: 'left', vertical: 'middle' };
+
     // === COLUMN WIDTHS ===
     worksheet.columns = [
         { width: 8 },   // NO BERKAS
