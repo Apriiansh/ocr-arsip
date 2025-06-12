@@ -7,7 +7,7 @@ import Navbar from "./Navbar";
 import Footer from "./Footer";
 
 // Daftar prefix path di mana Navbar dan Footer akan disembunyikan
-const PATHS_WITHOUT_NAVBAR_FOOTER = ["/sign-in", "/sign-up"];
+const PATHS_WITHOUT_NAVBAR_FOOTER = ["/sign-in", "/sign-up", "/user-manual"];
 
 
 

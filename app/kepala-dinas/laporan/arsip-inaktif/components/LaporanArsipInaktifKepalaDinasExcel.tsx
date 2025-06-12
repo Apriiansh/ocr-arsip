@@ -15,7 +15,7 @@ const TITLE_FONT_SIZE = 14;
 const SUB_TITLE_FONT_SIZE = 12;
 const TABLE_HEADER_FONT_SIZE = 9;
 const TABLE_DATA_FONT_SIZE = 9;
-const HEADER_FILL_COLOR = 'FFE6E6E6'; // Light Gray
+const HEADER_FILL_COLOR = 'FFE6E6E6'; 
 
 const BORDER_THIN_STYLE: Partial<ExcelJS.Border> = { style: 'thin' as BorderStyle };
 const BORDER_MEDIUM_STYLE: Partial<ExcelJS.Border> = { style: 'medium' as BorderStyle };

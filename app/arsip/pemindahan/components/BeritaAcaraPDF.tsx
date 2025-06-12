@@ -189,6 +189,14 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: 'grey',
     },
+    downloadTimestamp: { // Style for download timestamp
+        position: 'absolute',
+        bottom: 30, // Same as footer
+        left: 30,   // Left padding of the page
+        fontSize: 8,
+        color: 'grey',
+        fontFamily: 'Helvetica', // Ensure consistent font
+    }
 });
 
 export const BeritaAcaraPDF = ({
@@ -229,6 +237,12 @@ export const BeritaAcaraPDF = ({
         return numA - numB;
     });
 
+    // Get current time for download timestamp
+    const downloadTime = new Date();
+    const formattedDateForTimestamp = downloadTime.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+    const formattedTimeForTimestamp = downloadTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const downloadTimestampText = `Waktu Unduh: ${formattedDateForTimestamp}, ${formattedTimeForTimestamp} WIB`;
+
     return (
         <Document>
             <Page size="A4" style={styles.page}>
@@ -254,7 +268,7 @@ export const BeritaAcaraPDF = ({
 
                 {/* Content */}
                 <Text style={styles.paragraph}>
-                    Pada tanggal {day} bulan {month} tahun {year} dilaksanakan pemindahan arsip inaktif dari {kepalaBidangInfo.bidang} ke {sekretarisInfo.bidang}. Yang bertanda tangan di bawah ini:
+                    Pada tanggal {day} {month} {year} dilaksanakan pemindahan arsip aktif ke arsip inaktif dari bidang {kepalaBidangInfo.bidang} sebagai Unit Pengolah (UP) ke Record Centre. Yang bertanda tangan di bawah ini:
                 </Text>
 
                 {/* First Party Info */}
@@ -431,6 +445,10 @@ export const BeritaAcaraPDF = ({
                         <Text style={styles.signatureNIP}>NIP. {sekretarisInfo.nip}</Text>
                     </View>
                 </View>
+                {/* Download Timestamp on the last page */}
+                <Text style={styles.downloadTimestamp} fixed>
+                    {downloadTimestampText}
+                </Text>
             </Page>
         </Document>
     );

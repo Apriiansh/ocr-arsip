@@ -50,8 +50,13 @@ export const updateSession = async (request: NextRequest) => {
       "/settings",
     ];
 
-    const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
-    const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+    // Make auth route check more precise
+    const isAuthRoute = authRoutes.some(route => pathname === route || pathname.startsWith(route + '/'));
+    const isProtectedRoute = protectedRoutes.some(route => {
+      // For /user, only match /user or /user/*, to prevent /user-manual from being protected
+      if (route === "/user") return pathname === "/user" || pathname.startsWith("/user/");
+      return pathname.startsWith(route);
+    });
 
     if (getUserError && getUserError.message === 'fetch failed') {
       // Jika fetch failed, biarkan akses ke rute non-protected
