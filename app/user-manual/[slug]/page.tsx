@@ -2,7 +2,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Play, BookOpen, CheckCircle, Info } from 'lucide-react';
-import { getManualContent, getAllManualSlugs, ManualContent } from '@/lib/manual'; // Import dari lib
+import { getManualContent, getAllManualSlugs, ManualContent } from '@/lib/manual'; 
 import SafeImage from '@/components/SafeImage'; // Impor komponen SafeImage
 import { use } from 'react';
 

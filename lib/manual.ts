@@ -66,13 +66,18 @@ export interface ManualStep {
   
     'daftar-akun': {
       title: 'Cara Mendaftar Akun Baru',
-      description: 'Panduan untuk membuat akun baru dalam sistem CrChive.',
-      videoUrl: '/videos/tutorial-register.mp4',
+      description: 'Panduan untuk Admin membuat akun baru dalam sistem CrChive.',
+      // videoUrl: '/videos/tutorial-register.mp4',
       videoThumbnail: '/images/thumbnails/register-thumb.jpg',
       steps: [
         {
-          title: 'Akses Halaman Pendaftaran',
-          content: 'Klik link "Daftar di sini" pada halaman login.',
+          title: 'Akses Halaman Kelola Data Pengguna',
+          content: 'Login sebagai Admin dan Masuk ke menu Kelola Data Pengguna',
+          image: '/images/steps/signup-step1.jpg'
+        },
+        {
+          title: 'Klik Tombol Tambah Pengguna',
+          content: 'Setelah masuk ke Halaman tersebut klik tombol "Tambah Pengguna"',
           image: '/images/steps/signup-step1.jpg'
         },
         {
@@ -87,14 +92,9 @@ export interface ManualStep {
         },
         {
           title: 'Klik Tombol Daftar',
-          content: 'Setelah semua field terisi, klik tombol "Daftar".',
+          content: 'Setelah semua field terisi, klik tombol "Submit".',
           image: '/images/steps/signup-step4.jpg'
         },
-        {
-          title: 'Verifikasi Email',
-          content: 'Sistem akan mengirimkan email verifikasi ke alamat email yang Anda daftarkan. Buka email tersebut dan klik link verifikasi untuk mengaktifkan akun Anda.',
-          image: '/images/steps/signup-step5.jpg'
-        }
       ],
       generalTips: [
         'Pastikan Anda memiliki email aktif untuk verifikasi dan siapkan data pribadi yang diperlukan (Nama, NIP, Pangkat, Bidang, Jabatan).',

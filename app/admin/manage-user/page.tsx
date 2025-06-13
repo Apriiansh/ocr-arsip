@@ -6,14 +6,14 @@ import {
     getUsersWithBidangAction,
     adminUpdateUserAction,
     adminDeleteUserAction,
+    adminCreateUserAction,
 } from "@/app/actions";
 import { Modal } from "@/components/Modal";
 import { FaEdit, FaTrash } from "react-icons/fa";
-import { Users, Filter, ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
+import { Users, Filter, ArrowDown, ArrowUp, ChevronsUpDown, PlusCircle } from "lucide-react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { UserRole, Jabatan, DaftarBidang, UserProfile } from "./types";
-import { ManageUserSkeleton } from "./components/ManageUserSkeleton";
 import Loading from "../loading";
 
 const initialFormData = {
@@ -35,7 +35,7 @@ export default function ManageUsersPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState<"edit">("edit");
+    const [modalMode, setModalMode] = useState<"edit" | "create">("edit");
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [formData, setFormData] = useState(initialFormData);
     const [filterRole, setFilterRole] = useState<string>("Semua");
@@ -130,20 +130,29 @@ export default function ManageUsersPage() {
         }
     };
 
-    const openModal = (user: UserProfile) => {
-        setModalMode("edit");
-        console.log(`[openModal] Opening modal in edit mode for user:`, { userId: user.user_id });
-        setCurrentUser(user);
-        setFormData({
-            nama: user.nama || "",
-            email: user.email || "",
-            password: "",
-            nip: user.nip || "",
-            pangkat: user.pangkat || "",
-            jabatan: (user.jabatan as Jabatan) || Object.values(Jabatan)[0],
-            role: (user.role as UserRole) || Object.values(UserRole)[0],
-            id_bidang_fkey: user.id_bidang_fkey ? String(user.id_bidang_fkey) : (daftarBidang[0]?.id_bidang ? String(daftarBidang[0].id_bidang) : ""),
-        });
+    const openModal = (mode: "edit" | "create", user?: UserProfile) => {
+        setModalMode(mode);
+        if (mode === "edit" && user) {
+            console.log(`[openModal] Opening modal in edit mode for user:`, { userId: user.user_id });
+            setCurrentUser(user);
+            setFormData({
+                nama: user.nama || "",
+                email: user.email || "",
+                password: "", // Password field is for new password, keep blank for edit
+                nip: user.nip || "",
+                pangkat: user.pangkat || "",
+                jabatan: (user.jabatan as Jabatan) || Object.values(Jabatan)[0],
+                role: (user.role as UserRole) || Object.values(UserRole)[0],
+                id_bidang_fkey: user.id_bidang_fkey ? String(user.id_bidang_fkey) : (daftarBidang[0]?.id_bidang ? String(daftarBidang[0].id_bidang) : ""),
+            });
+        } else if (mode === "create") {
+            console.log("[openModal] Opening modal in create mode.");
+            setCurrentUser(null);
+            setFormData({
+                ...initialFormData,
+                id_bidang_fkey: daftarBidang[0]?.id_bidang ? String(daftarBidang[0].id_bidang) : "", // Default to first bidang if available
+            });
+        }
         setIsModalOpen(true);
     };
 
@@ -157,20 +166,34 @@ export default function ManageUsersPage() {
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         const formPayload = new FormData();
-        console.log("[handleSubmit] Form submitted. Current formData state:", formData);
+        console.log("[handleSubmit] Form submitted. Current formData state:", formData, "Mode:", modalMode);
+
+        if (modalMode === "create" && !formData.password) {
+            toast.error("Password wajib diisi untuk pengguna baru.");
+            console.error("[handleSubmit] Create mode: Password is required.");
+            return;
+        }
+
         Object.entries(formData).forEach(([key, value]) => {
-            if (key === "password" && !value) {
-                return;
+            if (key === "password") {
+                // Only append password if it's provided (for edit) or if it's create mode and provided
+                if (value || (modalMode === "create" && value)) { // Ensure password is not empty for create
+                    formPayload.append(key, value);
+                }
+            } else {
+                formPayload.append(key, value);
             }
-            formPayload.append(key, value);
         });
 
-        console.log(`[handleSubmit] Mode: ${modalMode}. Payload to be sent:`, Object.fromEntries(formPayload.entries()));
+        console.log(`[handleSubmit] Payload to be sent:`, Object.fromEntries(formPayload.entries()));
 
         let result;
-        if (currentUser) {
-            console.log(`[handleSubmit] Calling adminUpdateUserAction for user ID: ${currentUser.user_id} (Mode: ${modalMode})...`);
+        if (modalMode === "edit" && currentUser) {
+            console.log(`[handleSubmit] Calling adminUpdateUserAction for user ID: ${currentUser.user_id}.`);
             result = await adminUpdateUserAction(currentUser.user_id, formPayload);
+        } else if (modalMode === "create") {
+            console.log(`[handleSubmit] Calling adminCreateUserAction.`);
+            result = await adminCreateUserAction(formPayload);
         }
 
         console.log("[handleSubmit] Result from server action:", result);
@@ -209,15 +232,14 @@ export default function ManageUsersPage() {
             <ToastContainer position="top-right" autoClose={3000} />
             <div className="max-w-8xl mx-auto w-full h-full flex flex-col">
                 <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col">
-                    <div className="bg-primary/10 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-3 rounded-lg">
+                    <div className="bg-primary/10 px-6 py-4 rounded-t-lg flex justify-center items-center">
                         <h2 className="text-2xl font-bold flex items-center gap-2 text-primary">
                             <Users size={24} /> Kelola Pengguna
                         </h2>
                     </div>
 
-                    <div className="p-6 border-b border-border/50 space-y-4">
-
-                        <div>
+                    <div className="p-6 border-b border-border/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div className="w-full sm:w-auto">
                             <label htmlFor="roleFilter" className="block text-sm font-medium text-foreground mb-1.5">
                                 <Filter size={16} className="inline mr-1" /> Filter Berdasarkan Role:
                             </label>
@@ -225,14 +247,22 @@ export default function ManageUsersPage() {
                                 id="roleFilter"
                                 value={filterRole}
                                 onChange={(e) => setFilterRole(e.target.value)}
-                                className="w-full md:w-1/3 px-3 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm transition-colors duration-300"
+                                className="w-full md:w-64 px-3 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm transition-colors duration-300"
                             >
                                 <option value="Semua">Semua Role</option>
-                                {Object.values(UserRole).map((role) => (
-                                    <option key={role} value={role}>{role.replace(/_/g, " ")}</option>
+                                {Object.values(UserRole)
+                                    .filter(role => role !== UserRole.ADMIN) // Sembunyikan Admin dari filter
+                                    .map((role) => (
+                                        <option key={role} value={role}>{role.replace(/_/g, " ")}</option>
                                 ))}
                             </select>
                         </div>
+                        <button
+                            onClick={() => openModal("create")}
+                            className="btn-primary flex items-center gap-2 px-4 py-2 text-sm rounded-md hover:bg-primary/90 border border-border focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors duration-150"
+                        >
+                            <PlusCircle size={18} /> Tambah Pengguna
+                        </button>
                     </div>
 
                     {error && <div className="px-6 py-2"><p className="text-destructive">{error}</p></div>}
@@ -309,16 +339,18 @@ export default function ManageUsersPage() {
                                             <td className="px-3 py-3 text-sm text-center text-muted-foreground">{user.pangkat || "-"}</td>
                                             <td className="px-3 py-3 text-sm text-center whitespace-nowrap">
                                                 <button
-                                                    onClick={() => openModal(user)}
+                                                    onClick={() => user.role !== UserRole.ADMIN && openModal("edit", user)}
                                                     className="p-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary group transition-all duration-150 ease-in-out mr-2"
                                                     title="Edit"
+                                                    disabled={user.role === UserRole.ADMIN} // Nonaktifkan jika user adalah Admin
                                                 >
                                                     <FaEdit className="transform group-hover:scale-110 transition-transform duration-150" />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDelete(user.user_id)}
+                                                    onClick={() => user.role !== UserRole.ADMIN && handleDelete(user.user_id)}
                                                     className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-destructive group transition-all duration-150 ease-in-out"
                                                     title="Hapus"
+                                                    disabled={user.role === UserRole.ADMIN} // Nonaktifkan jika user adalah Admin
                                                 >
                                                     <FaTrash className="transform group-hover:scale-110 transition-transform duration-150" />
                                                 </button>
@@ -337,7 +369,10 @@ export default function ManageUsersPage() {
                         )}
                     </div>
 
-                    <Modal isOpen={isModalOpen} onClose={closeModal} title={"Edit Pengguna"}>
+                    <Modal 
+                        isOpen={isModalOpen} 
+                        onClose={closeModal} 
+                        title={modalMode === "edit" ? "Edit Pengguna" : "Tambah Pengguna Baru"}>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <label htmlFor="nama" className="block text-sm font-medium text-muted-foreground">Nama Lengkap</label>
@@ -349,7 +384,7 @@ export default function ManageUsersPage() {
                             </div>
                             <div>
                                 <label htmlFor="password" className="block text-sm font-medium text-muted-foreground">
-                                    Password (Kosongkan jika tidak ingin mengubah)
+                                    Password
                                 </label>
                                 <input type="password" name="password" id="password" value={formData.password} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm bg-input text-foreground" />
                             </div>
@@ -373,7 +408,9 @@ export default function ManageUsersPage() {
                                 <div>
                                     <label htmlFor="role" className="block text-sm font-medium text-muted-foreground">Role</label>
                                     <select name="role" id="role" value={formData.role} onChange={handleInputChange} required className="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm bg-input text-foreground">
-                                        {Object.values(UserRole).map(role => <option key={role} value={role}>{role.replace(/_/g, " ")}</option>)}
+                                        {Object.values(UserRole)
+                                            .filter(role => role !== UserRole.ADMIN) // Sembunyikan Admin dari pilihan role di modal
+                                            .map(role => <option key={role} value={role}>{role.replace(/_/g, " ")}</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -387,7 +424,7 @@ export default function ManageUsersPage() {
                             <div className="flex justify-end gap-3 pt-2">
                                 <button type="button" onClick={closeModal} className="px-4 py-2 border border-border rounded-md text-sm font-medium text-muted-foreground hover:bg-muted/50">Batal</button>
                                 <button type="submit" className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90">
-                                    Perbarui
+                                    {modalMode === "edit" ? "Perbarui" : "Tambah Pengguna"}
                                 </button>
                             </div>
                         </form>

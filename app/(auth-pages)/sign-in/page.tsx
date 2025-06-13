@@ -94,7 +94,7 @@ export default function SignIn() {
         </button>
       </form>
 
-      <p className="mt-6 md:mt-8 text-center text-sm text-muted-foreground">
+      {/* <p className="mt-6 md:mt-8 text-center text-sm text-muted-foreground">
         Belum punya akun?{" "}
         <Link
           href="/sign-up"
@@ -102,7 +102,7 @@ export default function SignIn() {
         >
           Daftar di sini
         </Link>
-      </p>
+      </p> */}
 
       <Link
         href="/user-manual"

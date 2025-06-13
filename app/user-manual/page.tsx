@@ -26,12 +26,6 @@ const manualData: ManualSection[] = [
                 slug: "login"
             },
             {
-                title: "Daftar Akun",
-                icon: UserCircle,
-                description: "Panduan membuat akun baru.",
-                slug: "daftar-akun"
-            },
-            {
                 title: "Mengganti Password",
                 icon: UserCircle,
                 description: "Langkah-langkah untuk mengubah kata sandi akun Anda.",
@@ -42,6 +36,12 @@ const manualData: ManualSection[] = [
     {
         title: "Admin",
         items: [
+            {
+                title: "Daftar Akun",
+                icon: UserCircle,
+                description: "Panduan membuat akun baru.",
+                slug: "daftar-akun"
+            },
             {
                 title: "Kelola Pengguna",
                 icon: Users,
