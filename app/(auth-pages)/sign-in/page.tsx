@@ -41,7 +41,7 @@ export default function SignIn() {
   };
 
   return (
-    <div className="card-neon relative w-full max-w-lg p-8 md:p-10 justify-center mx-auto">
+    <div className="card-neon relative w-full max-w-lg px-10 pt-8 pb-25 md:px-10 md:pt-10 md:pb-16 justify-center mx-auto">
       <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-6 text-center">
         Sign In
       </h2>
@@ -106,10 +106,10 @@ export default function SignIn() {
 
       <Link
         href="/user-manual"
-        className="absolute bottom-10 left-8 md:bottom-6 md:left-10 text-muted-foreground bg-slate-300 rounded-full p-2 hover:text-primary transition-colors duration-300"
+        className="absolute bottom-2 left-8 md:left-10 text-muted-foreground bg-slate-300 rounded-full p-2 hover:text-primary transition-colors duration-300"
         title="Panduan Pengguna"
       >
-        <BookOpen size={24} />
+        <BookOpen size={20} />
       </Link>
     </div>
   );
