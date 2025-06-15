@@ -84,13 +84,13 @@ export function PemindahanForm({
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground w-[5%]">No. Berkas</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Kode Klasifikasi</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/5">Uraian Informasi</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/6">Jenis Arsip (Edit)</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Kurun Waktu Penciptaan</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/6">Jenis Arsip</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Kurun Waktu</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Jangka Simpan Inaktif</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/12">Masa Retensi Inaktif (Thn)</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/12">Tingkat Perkembangan (Edit)</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/12">Nomor Boks (Edit)</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/6">Nasib Akhir (Edit)</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/12">Tingkat Perkembangan</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/12">Nomor Boks</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/6">Nasib Akhir</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Jumlah</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Keterangan</th>
                         </tr>
