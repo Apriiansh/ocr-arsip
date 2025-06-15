@@ -1,6 +1,6 @@
 import { AlertCircle, CheckCircle2, Clock, FileText, Loader2, XCircle } from "lucide-react";
 import { formatDate } from "../utils";
-import { ApprovalStatus as IApprovalStatus, BeritaAcara, PemindahanInfo, ProcessStatus, ArsipEdit } from "../types";
+import { ApprovalStatus as IApprovalStatus, BeritaAcara, PemindahanInfo, ProcessStatus } from "../types";
 
 interface ApprovalStatusProps {
     approvalStatus: { // Diperbarui untuk mencerminkan struktur objek
@@ -17,7 +17,7 @@ interface ApprovalStatusProps {
     };
     processStatus: ProcessStatus;
     beritaAcara: BeritaAcara;
-    pemindahanInfo: PemindahanInfo & { arsip_edits?: ArsipEdit[] };
+    pemindahanInfo: PemindahanInfo;
     selectedArsipCount: number;
 }
 
@@ -65,16 +65,6 @@ export function ApprovalStatus({
         }
         
         return null;
-    };
-
-    const getUniqueBoxNumbers = () => {
-        if (!pemindahanInfo.arsip_edits || pemindahanInfo.arsip_edits.length === 0) {
-            return "N/A";
-        }
-        const boxNumbers = pemindahanInfo.arsip_edits
-            .map(edit => edit.nomor_boks_edited)
-            .filter(Boolean); // Filter out undefined or empty strings
-        return Array.from(new Set(boxNumbers)).join(", ") || "N/A";
     };
     
     return (
@@ -130,7 +120,6 @@ export function ApprovalStatus({
                     <p>Jumlah Arsip: {selectedArsipCount} berkas</p>
                     <p>Nomor Berita Acara: {beritaAcara.nomor_berita_acara}</p>
                     <p>Lokasi Penyimpanan: {pemindahanInfo.lokasi_simpan}</p>
-                    <p>Nomor Boks: {getUniqueBoxNumbers()}</p>
                 </div>
             </div>
         </div>
