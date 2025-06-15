@@ -83,6 +83,7 @@ export function PemindahanForm({
                         <tr>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground w-[5%]">No. Berkas</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Kode Klasifikasi</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/5">Uraian Informasi</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/6">Jenis Arsip (Edit)</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Kurun Waktu Penciptaan</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Jangka Simpan Inaktif</th>
@@ -99,6 +100,9 @@ export function PemindahanForm({
                             <tr key={arsip.id_arsip_aktif} className="even:bg-muted/20">
                                 <td className="px-2 py-1 border text-center">{idx + 1}</td>
                                 <td className="px-2 py-1 border">{arsip.kode_klasifikasi}</td>
+                                <td className="px-2 py-1 border text-xs" title={arsip.uraian_informasi}>
+                                    {arsip.uraian_informasi}
+                                </td>
                                 <td className="px-2 py-1 border">
                                     <input
                                         type="text" // Jenis Arsip
