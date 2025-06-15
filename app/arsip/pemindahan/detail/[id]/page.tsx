@@ -60,6 +60,8 @@ export interface CombinedArsipData {
     jangka_simpan_aktif_periode: string; // Dari jangka_simpan arsip_aktif (periode DD-MM-YYYY s.d DD-MM-YYYY)
     jangka_simpan_inaktif_periode: string; // Dari jangka_simpan arsip_inaktif (periode DD-MM-YYYY s.d DD-MM-YYYY)
     nasib_akhir: string;
+    tingkat_perkembangan: string;
+    nomor_boks_spesifik: string; // Mengganti nama agar lebih jelas ini adalah nomor boks per arsip
 }
 
 
@@ -228,7 +230,9 @@ export default function PemindahanDetailPage() {
                                     jangka_simpan_aktif_periode: aktif?.jangka_simpan || '-', // Periode aktif dari arsip_aktif
                                     kurun_waktu_penciptaan: inaktif.kurun_waktu || '-', // Periode penciptaan asli
                                     jangka_simpan_inaktif_periode: inaktif.jangka_simpan || '-', // Periode inaktif "DD-MM-YYYY s.d. DD-MM-YYYY"
-                                    nasib_akhir: inaktif.nasib_akhir
+                                    nasib_akhir: inaktif.nasib_akhir,
+                                    tingkat_perkembangan: inaktif.tingkat_perkembangan || '-', 
+                                    nomor_boks_spesifik: inaktif.nomor_definitif_folder_dan_boks || '-' // Sesuaikan dengan nama kolom di tabel arsip_inaktif
                                 };
                             });
                             
@@ -626,7 +630,6 @@ export default function PemindahanDetailPage() {
                                 <h2 className="text-xl font-semibold text-foreground mb-3 border-b border-border/50 pb-2">Informasi Penyimpanan Inaktif</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
                                     <p className="flex items-start"><Building size={16} className="inline mr-2 mt-0.5 text-muted-foreground flex-shrink-0" /> <span className="font-medium text-muted-foreground w-28">Lokasi Simpan:</span> <span className="text-foreground">{pi.lokasi_simpan}</span></p>
-                                    <p className="flex items-start"><Box size={16} className="inline mr-2 mt-0.5 text-muted-foreground flex-shrink-0" /> <span className="font-medium text-muted-foreground w-28">Nomor Boks:</span> <span className="text-foreground">{pi.nomor_boks}</span></p>
                                     <p className="col-span-1 md:col-span-2 flex items-start"><Info size={16} className="inline mr-2 mt-0.5 text-muted-foreground flex-shrink-0" /> <span className="font-medium text-muted-foreground w-28">Kategori Arsip:</span> <span className="text-foreground">{pi.kategori_arsip}</span></p>
                                 </div>
                             </div>
@@ -640,14 +643,16 @@ export default function PemindahanDetailPage() {
                                     <table className="min-w-full divide-y divide-border table-fixed">
                                         <thead className="bg-muted">
                                             <tr className="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                                                <th className="px-3 py-3 w-20">No. Berkas</th>
-                                                <th className="px-3 py-3 w-36">Kode Klasifikasi</th>
-                                                <th className="px-3 py-3 w-32">Jenis Arsip</th>
-                                                <th className="px-3 py-3 w-28 text-center">Nasib Akhir</th>
-                                                <th className="px-3 py-3 min-w-[180px]">Uraian Informasi</th> 
-                                                <th className="px-3 py-3 w-20 text-center">Jumlah</th>
-                                                <th className="px-3 py-3 w-44">Kurun Waktu Penciptaan</th> 
-                                                <th className="px-3 py-3 w-52">Jangka Simpan (Aktif/Inaktif)</th> 
+                                                <th className="px-3 py-3 w-[10%]">No. Berkas</th>
+                                                <th className="px-3 py-3 w-[15%]">Kode Klasifikasi</th>
+                                                <th className="px-3 py-3 w-[15%]">Jenis Arsip</th>
+                                                <th className="px-3 py-3 w-[10%] text-center">Tingkat Perkembangan</th>
+                                                <th className="px-3 py-3 w-[10%]">No. Boks</th>
+                                                <th className="px-3 py-3 w-[10%] text-center">Nasib Akhir</th>
+                                                <th className="px-3 py-3 min-w-[150px]">Uraian Informasi</th>
+                                                <th className="px-3 py-3 w-[7%] text-center">Jumlah</th>
+                                                <th className="px-3 py-3 w-[15%]">Kurun Waktu Penciptaan</th>
+                                                <th className="px-3 py-3 w-[18%]">Jangka Simpan (Aktif/Inaktif)</th>
                                             </tr>
                                         </thead>
                                         <tbody className="bg-card divide-y divide-border">
@@ -656,6 +661,8 @@ export default function PemindahanDetailPage() {
                                                     <td className="px-3 py-3 text-sm text-foreground whitespace-nowrap">{arsip.nomor_berkas}</td>
                                                     <td className="px-3 py-3 text-sm text-foreground break-words" title={arsip.kode_klasifikasi}>{arsip.kode_klasifikasi}</td>
                                                     <td className="px-3 py-3 text-sm text-foreground break-words" title={arsip.jenis_arsip}>{arsip.jenis_arsip}</td>
+                                                    <td className="px-3 py-3 text-sm text-foreground text-center whitespace-nowrap">{arsip.tingkat_perkembangan}</td>
+                                                    <td className="px-3 py-3 text-sm text-foreground whitespace-nowrap">{arsip.nomor_boks_spesifik}</td>
                                                     <td className="px-3 py-3 text-sm text-foreground text-center whitespace-nowrap">
                                                         {arsip.nasib_akhir}
                                                     </td>

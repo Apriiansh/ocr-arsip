@@ -1,11 +1,11 @@
 import { CheckCircle2, FolderOpen, Plus, History, FileText } from "lucide-react";
-import { BeritaAcara, PemindahanInfo } from "../types";
+import { BeritaAcara, PemindahanInfo, ArsipEdit } from "../types";
 import { useRouter } from "next/navigation";
 
 interface SuccessConfirmationProps {
     selectedArsipCount: number;
     beritaAcara: BeritaAcara;
-    pemindahanInfo: PemindahanInfo;
+    pemindahanInfo: PemindahanInfo & { arsip_edits?: ArsipEdit[] };
     onReset: () => void;
     // onDownloadPDF: () => void; // Dihapus karena tidak lagi digunakan
 }
@@ -18,6 +18,16 @@ export function SuccessConfirmation({
     // onDownloadPDF // Dihapus
 }: SuccessConfirmationProps) {
     const router = useRouter();
+
+    const getUniqueBoxNumbers = () => {
+        if (!pemindahanInfo.arsip_edits || pemindahanInfo.arsip_edits.length === 0) {
+            return "N/A";
+        }
+        const boxNumbers = pemindahanInfo.arsip_edits
+            .map(edit => edit.nomor_boks_edited)
+            .filter(Boolean); // Filter out undefined or empty strings
+        return Array.from(new Set(boxNumbers)).join(", ") || "N/A";
+    };
 
     return (
         <div className="p-6 text-center">
@@ -46,7 +56,7 @@ export function SuccessConfirmation({
                     </div>
                     <div className="flex justify-between">
                         <span>Nomor Boks:</span>
-                        <span className="font-medium text-foreground">{pemindahanInfo.nomor_boks}</span>
+                        <span className="font-medium text-foreground">{getUniqueBoxNumbers()}</span>
                     </div>
                 </div>
             </div>

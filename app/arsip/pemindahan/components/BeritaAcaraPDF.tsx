@@ -358,19 +358,25 @@ export const BeritaAcaraPDF = ({
                     <View style={styles.table}>
                         {/* Table Header */}
                         <View style={styles.tableRowHeader}>
-                            <View style={[styles.tableCol, { width: '12%' }]}>
+                            <View style={[styles.tableCol, { width: '10%' }]}>
                                 <Text style={styles.tableCellHeader}>Nomor Berkas</Text>
                             </View>
-                            <View style={[styles.tableCol, { width: '18%' }]}>
+                            <View style={[styles.tableCol, { width: '15%' }]}>
                                 <Text style={styles.tableCellHeader}>Kode Klasifikasi</Text>
                             </View>
-                            <View style={[styles.tableCol, { width: '20%' }]}>
+                            <View style={[styles.tableCol, { width: '15%' }]}>
                                 <Text style={styles.tableCellHeader}>Jenis</Text>
                             </View>
-                            <View style={[styles.tableCol, { width: '25%' }]}>
+                            <View style={[styles.tableCol, { width: '12%' }]}>
+                                <Text style={styles.tableCellHeader}>Tk. Perk.</Text>
+                            </View>
+                            <View style={[styles.tableCol, { width: '10%' }]}>
+                                <Text style={styles.tableCellHeader}>No. Boks</Text>
+                            </View>
+                            <View style={[styles.tableCol, { width: '20%' }]}>
                                 <Text style={styles.tableCellHeader}>Uraian Informasi</Text>
                             </View>
-                            <View style={[styles.tableCol, { width: '10%', textAlign: 'center' }]}>
+                            <View style={[styles.tableCol, { width: '8%', textAlign: 'center' }]}>
                                 <Text style={styles.tableCellHeader}>Jumlah</Text>
                             </View>
                             <View style={[styles.tableCol, { width: '20%' }]}> {/* Adjusted width */}
@@ -381,19 +387,25 @@ export const BeritaAcaraPDF = ({
                         {/* Table Body */}
                         {sortedArsip.map((arsip, index) => ( // Use sortedArsip
                             <View style={styles.tableRow} key={arsip.id_arsip_aktif}>
-                                <View style={[styles.tableCol, { width: '12%', textAlign: 'center' }]}>
+                                <View style={[styles.tableCol, { width: '10%', textAlign: 'center' }]}>
                                     <Text style={styles.tableCell}>{arsip.nomor_berkas}</Text>
                                 </View>
-                                <View style={[styles.tableCol, { width: '18%' }]}>
+                                <View style={[styles.tableCol, { width: '15%' }]}>
                                     <Text style={styles.tableCell}>{arsip.kode_klasifikasi}</Text>
                                 </View>
-                                <View style={[styles.tableCol, { width: '20%' }]}>
+                                <View style={[styles.tableCol, { width: '15%' }]}>
                                     <Text style={styles.tableCell}>{arsip.jenis_arsip || '-'}</Text>
                                 </View>
-                                <View style={[styles.tableCol, { width: '25%' }]}>
-                                    <Text style={styles.tableCell}>{arsip.uraian_informasi}</Text>
+                                <View style={[styles.tableCol, { width: '12%', textAlign: 'center' }]}>
+                                    <Text style={styles.tableCell}>{arsip.tingkat_perkembangan || '-'}</Text>
                                 </View>
                                 <View style={[styles.tableCol, { width: '10%', textAlign: 'center' }]}>
+                                    <Text style={styles.tableCell}>{arsip.nomor_boks_spesifik || '-'}</Text>
+                                </View>
+                                <View style={[styles.tableCol, { width: '20%' }]}>
+                                    <Text style={styles.tableCell}>{arsip.uraian_informasi}</Text>
+                                </View>
+                                <View style={[styles.tableCol, { width: '8%', textAlign: 'center' }]}>
                                     <Text style={[styles.tableCell, { textAlign: 'center' }]}>{arsip.jumlah}</Text>
                                 </View>
                                 <View style={[styles.tableCol, { width: '20%' }]}> {/* Adjusted width */}
@@ -414,10 +426,6 @@ export const BeritaAcaraPDF = ({
                         <View style={styles.userInfoRow}>
                             <Text style={styles.userInfoLabel}>Lokasi Simpan</Text>
                             <Text>: {pemindahanInfo.lokasi_simpan}</Text>
-                        </View>
-                        <View style={styles.userInfoRow}>
-                            <Text style={styles.userInfoLabel}>Nomor Boks</Text>
-                            <Text>: {pemindahanInfo.nomor_boks}</Text>
                         </View>
                         <View style={styles.userInfoRow}> {/* Kategori Arsip dipindah ke bawah agar konsisten */}
                             <Text style={styles.userInfoLabel}>Kategori Arsip</Text>

@@ -4,15 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ArrowRight, Save, FolderOpen, CheckCircle2, RefreshCw } from "lucide-react";
 import { createClient } from "@/utils/supabase/client"; // Import SupabaseClient
-import { toast } from "react-toastify";
-import { ArsipAktif, BeritaAcara, PemindahanInfo, ApprovalStatus as IApprovalStatus, ProcessStatus } from "./types";
+import { toast } from "react-toastify";import { ArsipAktif, BeritaAcara, PemindahanInfo, ApprovalStatus as IApprovalStatus, ProcessStatus, ArsipEdit } from "./types";
 import { ALLOWED_ROLES, SIGN_IN_PATH, DEFAULT_HOME_PATH, getISODateString, calculateRetentionExpired, formatDate, kodeKlasifikasiCompare } from "./utils";
 import { SelectArsip } from "./components/SelectArsip";
 import { BeritaAcaraForm } from "./components/BeritaAcaraForm";
 import { PemindahanForm } from "./components/PemindahanForm";
 import { ApprovalStatus } from "./components/ApprovalStatus";
 import { SuccessConfirmation } from "./components/SuccessConfirmation";
-import { PemindahanLoadingSkeleton } from "./components/LoadingSkeleton";
 import { sendDepartmentHeadNotification, sendRoleNotification } from "@/utils/notificationService";
 import Loading from "./loading";
 
@@ -47,9 +45,9 @@ export default function PemindahanArsip() {
 	});
 
 	// State untuk data pemindahan arsip
-	const [pemindahanInfo, setPemindahanInfo] = useState<PemindahanInfo & { arsip_edits?: any[] }>({
+	const [pemindahanInfo, setPemindahanInfo] = useState<PemindahanInfo & { arsip_edits?: ArsipEdit[] }>({
 		lokasi_simpan: "",
-		nomor_boks: "",
+		// nomor_boks: "", // Dipindahkan ke arsip_edits
 		jenis: "",
 		jangka_simpan_inaktif: 0,
 		nasib_akhir: "",
@@ -423,7 +421,7 @@ export default function PemindahanArsip() {
 	};
 
 	// Handler untuk perubahan field spesifik arsip dalam PemindahanForm
-	const handleArsipFieldChange = (arsipId: string, fieldName: 'jenis_arsip_edited' | 'masa_retensi_inaktif_edited' | 'nasib_akhir_edited', value: string | number) => {
+	const handleArsipFieldChange = (arsipId: string, fieldName: 'jenis_arsip_edited' | 'masa_retensi_inaktif_edited' | 'nasib_akhir_edited' | 'nomor_boks_edited' | 'tingkat_perkembangan_edited', value: string | number) => {
 		setSelectedArsip(prevArsipList =>
 			prevArsipList.map(arsip =>
 				arsip.id_arsip_aktif === arsipId
@@ -471,10 +469,28 @@ export default function PemindahanArsip() {
 
 		if (currentStep === 4) {
 			// Validasi form informasi pemindahan
-			if (!pemindahanInfo.lokasi_simpan || !pemindahanInfo.nomor_boks) {
+			if (!pemindahanInfo.lokasi_simpan) {
 				toast.warning("Lengkapi informasi lokasi penyimpanan arsip inaktif!");
 				return;
 			}
+			// Validasi Nomor Boks per arsip
+			for (const arsip of selectedArsip) {
+				const edit = pemindahanInfo.arsip_edits?.find(e => e.id_arsip_aktif === arsip.id_arsip_aktif);
+				const nomorBoksArsip = edit?.nomor_boks_edited ?? (arsip as any).nomor_boks_edited;
+				if (!nomorBoksArsip) {
+					toast.warning(`Nomor Boks wajib diisi untuk arsip "${arsip.uraian_informasi || arsip.kode_klasifikasi}" (No. Berkas Asli: ${arsip.nomor_berkas})!`);
+					return;
+				}
+				// Validasi Tingkat Perkembangan per arsip (jika diperlukan, contoh: tidak boleh kosong)
+				// Untuk saat ini, kita asumsikan bisa fallback ke nilai asli jika tidak diubah.
+				// Jika ingin wajib diisi/dipilih ulang:
+				// const tingkatPerkembanganArsip = edit?.tingkat_perkembangan_edited ?? (arsip as any).tingkat_perkembangan_edited ?? arsip.tingkat_perkembangan;
+				// if (!tingkatPerkembanganArsip) {
+				// 	toast.warning(`Tingkat Perkembangan wajib diisi untuk arsip "${arsip.uraian_informasi || arsip.kode_klasifikasi}" (No. Berkas Asli: ${arsip.nomor_berkas})!`);
+				// 	return;
+				// }
+			}
+
 			// Proses pemindahan arsip
 			if (processStatus.status !== 'processing' && processStatus.status !== 'completed') {
 				handlePemindahanArsip();
@@ -588,7 +604,7 @@ export default function PemindahanArsip() {
 						});
 						setPemindahanInfo({
 							lokasi_simpan: "",
-							nomor_boks: "",
+							// nomor_boks: "",
 							jenis: "",
 							jangka_simpan_inaktif: 0,
 							nasib_akhir: "",
@@ -640,7 +656,7 @@ export default function PemindahanArsip() {
 
 				setPemindahanInfo(process.pemindahan_info && typeof process.pemindahan_info === 'object' ? { ...process.pemindahan_info, arsip_edits: process.pemindahan_info.arsip_edits || [] } : {
 					lokasi_simpan: "",
-					nomor_boks: "",
+					// nomor_boks: "",
 					jenis: "",
 					jangka_simpan_inaktif: 0,
 					nasib_akhir: "",
@@ -972,8 +988,14 @@ export default function PemindahanArsip() {
 				}
 				
 				const nasibAkhir = edit.nasib_akhir_edited ?? (arsip as any).nasib_akhir_edited ?? klasData?.nasib_akhir ?? "";
+				const tingkatPerkembangan = edit.tingkat_perkembangan_edited ?? (arsip as any).tingkat_perkembangan_edited ?? arsip.tingkat_perkembangan ?? "";
 
 				// Validasi penting
+				const nomorBoksArsip = edit.nomor_boks_edited ?? (arsip as any).nomor_boks_edited ?? "";
+				if (!nomorBoksArsip) {
+					throw new Error(`Nomor Boks wajib diisi untuk arsip ID ${arsip.id_arsip_aktif} (Kode: ${arsip.kode_klasifikasi}, No. Berkas Asli: ${arsip.nomor_berkas}).`);
+				}
+
 				if (!jenisArsip) {
 					throw new Error(`Jenis arsip wajib diisi untuk arsip ID ${arsip.id_arsip_aktif} (Kode: ${arsip.kode_klasifikasi}, No. Berkas Asli: ${arsip.nomor_berkas}).`);
 				}
@@ -982,6 +1004,9 @@ export default function PemindahanArsip() {
 				}
 				if (!nasibAkhir) {
 					throw new Error(`Nasib akhir wajib diisi untuk arsip ID ${arsip.id_arsip_aktif} (Kode: ${arsip.kode_klasifikasi}, No. Berkas Asli: ${arsip.nomor_berkas}).`);
+				}
+				if (!tingkatPerkembangan) {
+					throw new Error(`Tingkat perkembangan wajib diisi untuk arsip ID ${arsip.id_arsip_aktif} (Kode: ${arsip.kode_klasifikasi}, No. Berkas Asli: ${arsip.nomor_berkas}).`);
 				}
 
 				// Hitung kurun_waktu_inaktif_mulai dan kurun_waktu_inaktif_berakhir
@@ -1025,10 +1050,10 @@ export default function PemindahanArsip() {
 					jenis_arsip: jenisArsip,
 					kurun_waktu: arsip.kurun_waktu,
 					jangka_simpan: periodeInaktifDisplay,
-					tingkat_perkembangan: arsip.tingkat_perkembangan,
+					tingkat_perkembangan: tingkatPerkembangan, // Menggunakan tingkat perkembangan yang sudah diproses
 					jumlah: arsip.jumlah,
 					keterangan: arsip.keterangan,
-					nomor_definitif_folder_dan_boks: pemindahanInfo.nomor_boks,
+					nomor_definitif_folder_dan_boks: nomorBoksArsip, // Menggunakan nomor boks spesifik arsip
 					lokasi_simpan: pemindahanInfo.lokasi_simpan,
 					masa_retensi: masaRetensiInaktifVal,
 					nasib_akhir: nasibAkhir,
@@ -1118,7 +1143,7 @@ export default function PemindahanArsip() {
 		});
 		setPemindahanInfo({
 			lokasi_simpan: "",
-			nomor_boks: "",
+			// nomor_boks: "",
 			jenis: "",
 			jangka_simpan_inaktif: 0,
 			nasib_akhir: "",
@@ -1202,7 +1227,7 @@ export default function PemindahanArsip() {
 			});
 			setPemindahanInfo({
 				lokasi_simpan: "",
-				nomor_boks: "",
+				// nomor_boks: "",
 				jenis: "",
 				jangka_simpan_inaktif: 0,
 				nasib_akhir: "",

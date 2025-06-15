@@ -67,7 +67,7 @@ export interface ManualStep {
     'daftar-akun': {
       title: 'Cara Mendaftar Akun Baru',
       description: 'Panduan untuk Admin membuat akun baru dalam sistem CrChive.',
-      // videoUrl: '/videos/tutorial-register.mp4',
+      videoUrl: '/videos/tutorial-register.mp4',
       videoThumbnail: '/images/thumbnails/register-thumb.jpg',
       steps: [
         {
@@ -243,6 +243,7 @@ export interface ManualStep {
     'visualisasi-filing-cabinet': {
         title: 'Melihat Visualisasi Filing Cabinet',
         description: 'Panduan untuk menampilkan visualisasi filing cabinet yang ada pada bidang Anda.',
+        videoUrl: '/videos/tutorial-visualisasi-cabinet.mp4',
         steps: [
             {
                 title: 'Akses Menu Daftar Arsip Aktif',

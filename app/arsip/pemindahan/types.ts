@@ -59,12 +59,20 @@ export interface BeritaAcara {
 // untuk input isi arsip inaktif
 export interface PemindahanInfo {
     lokasi_simpan: string;
-    nomor_boks: string; // nomor_definitif_folder_dan_boks: string;
+    // nomor_boks: string; // Dipindahkan ke ArsipEdit
     jenis: string; // cek kode klasifikasi dari table klasifikasi arsip memiliki kolom "label", "inaktif", dan "nasib_akhir" bisa digunakan untuk otomatisasi input
     jangka_simpan_inaktif: number; // Durasi retensi INAKTIF dalam tahun
     nasib_akhir: string; // nasib_akhir: string;
     kategori_arsip: string; // kategori_arsip: string;
     keterangan: string; // keterangan: string;
+}
+
+export interface ArsipEdit {
+    id_arsip_aktif: string;
+    jenis_arsip_edited?: string;
+    masa_retensi_inaktif_edited?: string | number; // Bisa string dari input, lalu di-parse
+    nasib_akhir_edited?: string;
+    nomor_boks_edited?: string;    tingkat_perkembangan_edited?: string;
 }
 
 export interface ApprovalStatus {

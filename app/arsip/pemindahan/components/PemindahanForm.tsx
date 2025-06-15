@@ -1,13 +1,14 @@
 import React from "react";
 import { FolderOpen, AlertTriangle } from "lucide-react";
-import { ArsipAktif, PemindahanInfo } from "../types";
+import { ArsipAktif, PemindahanInfo, ArsipEdit } from "../types";
 import { formatDate, kodeKlasifikasiCompare } from "../utils"; // Impor formatDate dan kodeKlasifikasiCompare
+import Input_ from "postcss/lib/input";
 
 interface PemindahanFormProps {
     selectedArsip: ArsipAktif[]; // Asumsikan ArsipAktif dapat memiliki field seperti jenis_arsip_edited, inaktif_edited, nasib_akhir_edited
-    pemindahanInfo: PemindahanInfo;
+    pemindahanInfo: PemindahanInfo & { arsip_edits?: ArsipEdit[] };
     onChangePemindahanInfo: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
-    onArsipFieldChange: (arsipId: string, fieldName: 'jenis_arsip_edited' | 'masa_retensi_inaktif_edited' | 'nasib_akhir_edited', value: string | number) => void;
+    onArsipFieldChange: (arsipId: string, fieldName: 'jenis_arsip_edited' | 'masa_retensi_inaktif_edited' | 'nasib_akhir_edited' | 'nomor_boks_edited' | 'tingkat_perkembangan_edited', value: string | number) => void;
 }
 
 export function PemindahanForm({
@@ -86,6 +87,8 @@ export function PemindahanForm({
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Kurun Waktu Penciptaan</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Jangka Simpan Inaktif</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/12">Masa Retensi Inaktif (Thn)</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/12">Tingkat Perkembangan (Edit)</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/12">Nomor Boks (Edit)</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground w-1/6">Nasib Akhir (Edit)</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Jumlah</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Keterangan</th>
@@ -94,7 +97,7 @@ export function PemindahanForm({
                     <tbody>
                         {sortedSelectedArsip.map((arsip, idx) => (
                             <tr key={arsip.id_arsip_aktif} className="even:bg-muted/20">
-                                <td className="px-2 py-1 border text-center">{idx + 1}</td> {/* Menampilkan nomor urut baru */}
+                                <td className="px-2 py-1 border text-center">{idx + 1}</td>
                                 <td className="px-2 py-1 border">{arsip.kode_klasifikasi}</td>
                                 <td className="px-2 py-1 border">
                                     <input
@@ -118,6 +121,24 @@ export function PemindahanForm({
                                         className="w-full p-1.5 border border-border rounded-md bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs"
                                         placeholder="-"
                                         min="0"
+                                    />
+                                </td>
+                                <td className="px-2 py-1 border">
+                                    <input
+                                        type="text"
+                                        value={(arsip as any).tingkat_perkembangan_edited ?? pemindahanInfo.arsip_edits?.find(e => e.id_arsip_aktif === arsip.id_arsip_aktif)?.tingkat_perkembangan_edited ?? arsip.tingkat_perkembangan ?? ""}
+                                        onChange={(e) => onArsipFieldChange(arsip.id_arsip_aktif, 'tingkat_perkembangan_edited', e.target.value)}
+                                        className="w-full p-1.5 border border-border rounded-md bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                                    />
+                                </td>
+                                <td className="px-2 py-1 border">
+                                    <input
+                                        type="text"
+                                        value={(arsip as any).nomor_boks_edited ?? pemindahanInfo.arsip_edits?.find(e => e.id_arsip_aktif === arsip.id_arsip_aktif)?.nomor_boks_edited ?? ""}
+                                        onChange={(e) => onArsipFieldChange(arsip.id_arsip_aktif, 'nomor_boks_edited', e.target.value)}
+                                        className="w-full p-1.5 border border-border rounded-md bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                                        placeholder="No. Boks"
+                                        required
                                     />
                                 </td>
                                 <td className="px-2 py-1 border">
@@ -166,19 +187,6 @@ export function PemindahanForm({
                 </div>
                 <div>
                     <label className="block mb-1">
-                        Nomor Boks <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                        type="text"
-                        name="nomor_boks"
-                        value={pemindahanInfo.nomor_boks}
-                        onChange={onChangePemindahanInfo}
-                        className="w-full p-2 border border-border rounded-md bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="block mb-1">
                         Kategori Arsip
                     </label>
                     <select
@@ -207,7 +215,7 @@ export function PemindahanForm({
 
             <div className="mt-6 text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg border border-border/30">
                 <ul className="list-disc ml-5">
-                    <li>Kolom <b>Jenis Arsip (Edit)</b>, <b>Masa Retensi Inaktif (Thn)</b>, dan <b>Nasib Akhir (Edit)</b> diisi otomatis dari data klasifikasi arsip jika tersedia.</li>
+                    <li>Kolom <b>Jenis Arsip (Edit)</b>, <b>Masa Retensi Inaktif (Thn)</b>, <b>Tingkat Perkembangan (Edit)</b>, <b>Nomor Boks (Edit)</b>, dan <b>Nasib Akhir (Edit)</b> diisi otomatis dari data klasifikasi arsip atau data asli arsip jika tersedia (kecuali Nomor Boks).</li>
                     <li>Anda dapat mengubah nilai pada kolom-kolom tersebut jika diperlukan.</li>
                     <li>Perubahan akan disimpan dan digunakan saat proses pemindahan arsip.</li>
                     <li>Jika data klasifikasi tidak ditemukan untuk suatu arsip, Anda wajib mengisi kolom-kolom edit tersebut secara manual.</li>
