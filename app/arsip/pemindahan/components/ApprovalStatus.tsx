@@ -119,7 +119,6 @@ export function ApprovalStatus({
                 <div className="space-y-2 text-sm">
                     <p>Jumlah Arsip: {selectedArsipCount} berkas</p>
                     <p>Nomor Berita Acara: {beritaAcara.nomor_berita_acara}</p>
-                    <p>Lokasi Penyimpanan: {pemindahanInfo.lokasi_simpan}</p>
                 </div>
             </div>
         </div>
