@@ -272,6 +272,41 @@ export interface ManualStep {
         ]
     },
 
+    'monitoring-retensi-arsip': {
+        title: 'Monitoring Retensi Arsip Aktif',
+        description: 'Panduan untuk memantau masa retensi arsip aktif dan mengidentifikasi arsip yang mendekati atau telah melewati batas waktu retensinya.',
+        steps: [
+            {
+                title: 'Akses Menu Monitoring Retensi',
+                content: 'Login ke sistem dan navigasi ke menu "Arsip"  > "Retensi".',
+                image: '/images/steps/monitoring-retensi-menu.jpg',  
+            },
+            {
+                title: 'Lihat Daftar Arsip dan Status Retensi',
+                content: 'Halaman akan menampilkan daftar arsip aktif beserta informasi tanggal retensi aktifnya. Perhatikan arsip yang ditandai sebagai "Segera Pindah" atau "Sudah Lewat Retensi".',
+                image: '/images/steps/monitoring-retensi-list.jpg',  
+            },
+            {
+                title: 'Filter dan Urutkan Data',
+                content: 'Gunakan fitur filter untuk menampilkan arsip berdasarkan masa retensi yang telah lewat atau filter berdasarkan berapa lama waktu akan habis retens aktifnya.',
+                image: '/images/steps/monitoring-retensi-filter.png',  
+            },
+            {
+                title: 'Identifikasi Tindakan Lanjutan',
+                content: 'Berdasarkan status retensi, Anda dapat mengidentifikasi arsip mana yang perlu segera diproses untuk pemindahan ke arsip inaktif.',
+                image: '/images/steps/monitoring-retensi-aksi.jpg',  
+            }
+        ],
+        generalTips: [
+            'Periksa secara berkala halaman monitoring retensi untuk memastikan tidak ada arsip yang terlewat dari proses pemindahan.',
+            'Sistem akan memberikan notifikasi untuk arsip yang mendekati masa akhir retensi aktif.',
+        ],
+        relatedLinks: [
+            { title: 'Proses Pemindahan Arsip', slug: 'pemindahan-arsip' },
+            { title: 'Melihat Daftar Arsip Aktif', slug: 'daftar-arsip-aktif' }
+        ]
+    },
+
     'pemindahan-arsip': {
         title: 'Proses Pemindahan Arsip Aktif ke Inaktif',
         description: 'Panduan langkah demi langkah untuk memindahkan arsip aktif yang sudah memenuhi masa retensi ke penyimpanan arsip inaktif.',

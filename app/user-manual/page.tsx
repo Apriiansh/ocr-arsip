@@ -75,7 +75,7 @@ const manualData: ManualSection[] = [
                 title: "Monitoring Retensi Arsip Aktif",
                 icon: TimerOff,
                 description: "Langkah-langkah memindahkan arsip aktif menjadi inaktif.",
-                slug: "pemindahan-arsip"
+                slug: "monitoring-retensi-arsip"
             },
             {
                 title: "Proses Pemindahan Arsip",
