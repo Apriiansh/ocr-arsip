@@ -106,7 +106,7 @@ export default function SignIn() {
 
       <Link
         href="/user-manual"
-        className="absolute bottom-2 left-8 md:left-10 text-muted-foreground bg-slate-300 rounded-full p-2 hover:text-primary transition-colors duration-300"
+        className="absolute bottom-4 left-8 md:left-10 text-muted-foreground bg-slate-300 rounded-full p-2 hover:text-primary transition-colors duration-300"
         title="Panduan Pengguna"
       >
         <BookOpen size={20} />
