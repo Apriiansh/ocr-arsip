@@ -13,6 +13,7 @@ import {
   Box
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+import { useAuth } from "@/context/AuthContext"; // Impor useAuth
 import { toast } from 'react-toastify';
 import Loading from './loading';
 
@@ -60,8 +61,7 @@ export default function VisualisasiFiling() {
   const router = useRouter();
   
   const [visualizationData, setVisualizationData] = useState<VisualizationData>({});
-  const [loading, setLoading] = useState(true);
-  const [authLoading, setAuthLoading] = useState(true);
+  const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
   const [userBidangId, setUserBidangId] = useState<number | null>(null);
   const [userBidangNama, setUserBidangNama] = useState<string>("");
   const [expandedCabinets, setExpandedCabinets] = useState<Set<string>>(new Set());
@@ -70,76 +70,47 @@ export default function VisualisasiFiling() {
 
   const ALLOWED_ROLE = "Pegawai";
   const SIGN_IN_PATH = "/sign-in";
-  const DEFAULT_HOME_PATH = "/";
+  const DEFAULT_HOME_PATH = "/"; 
+  const [dataLoading, setDataLoading] = useState(true);
 
   // Auth check
   useEffect(() => {
-    const checkAuth = async () => {
-      setAuthLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
+    const fetchData = async () => {
+      // Jika AuthContext masih loading, tunggu
+      if (isAuthLoading) return;
 
-      if (!session) {
-        router.push(SIGN_IN_PATH);
-        setAuthLoading(false);
+      // Jika ada error dari AuthContext, tampilkan dan jangan lanjutkan
+      if (authError) {
+        toast.error(`Error Autentikasi: ${authError}`);
         return;
       }
 
-      const userId = session.user.id;
-      
-      try {
-        const { data: userData, error: userFetchError } = await supabase
-          .from("users")
-          .select(`
-            role, 
-            id_bidang_fkey,
-            daftar_bidang (
-              nama_bidang
-            )
-          `)
-          .eq("user_id", userId)
-          .single<UserData>(); // <-- tambahkan tipe di sini
-
-        if (userFetchError || !userData || !userData.role || userData.id_bidang_fkey === null) {
-          toast.warn("Data pengguna tidak lengkap. Silakan login kembali.");
-          router.push(SIGN_IN_PATH);
-          setAuthLoading(false);
-          return;
-        }
-
-        if (userData.role !== ALLOWED_ROLE) {
-          toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
-          router.push(DEFAULT_HOME_PATH);
-          setAuthLoading(false);
-          return;
-        }
-
-        setUserBidangId(userData.id_bidang_fkey);
-        setUserBidangNama(
-          Array.isArray(userData.daftar_bidang)
-            ? userData.daftar_bidang[0]?.nama_bidang || ""
-            : userData.daftar_bidang?.nama_bidang || ""
-        );
-      } catch (error: any) {
-        toast.error("Terjadi kesalahan saat verifikasi: " + error.message);
-        router.push(SIGN_IN_PATH);
-        setAuthLoading(false);
+      // Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+      if (!user) {
         return;
       }
-      
-      setAuthLoading(false);
+
+      // Verifikasi role pengguna dan kelengkapan data bidang
+      if (user.role !== ALLOWED_ROLE || !user.id_bidang_fkey) {
+        toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini atau data bidang tidak lengkap.");
+        router.push(DEFAULT_HOME_PATH);
+        return;
+      }
+
+      setUserBidangId(user.id_bidang_fkey);
+      setUserBidangNama(user.daftar_bidang?.nama_bidang || "");
     };
-
-    checkAuth();
-  }, [router, supabase]);
+    fetchData();
+  }, [user, isAuthLoading, authError, router]);
 
   // Fetch visualization data
   const fetchVisualizationData = useCallback(async () => {
     if (userBidangId === null) {
-      setLoading(false);
+      setDataLoading(false);
       return;
     }
 
-    setLoading(true);
+    setDataLoading(true);
     
     try {
       // Fetch lokasi penyimpanan dengan arsip untuk bidang pengguna
@@ -166,7 +137,7 @@ export default function VisualisasiFiling() {
       if (error) {
         toast.error("Gagal memuat data visualisasi: " + error.message);
         setVisualizationData({});
-        setLoading(false);
+        setDataLoading(false);
         return;
       }
 
@@ -252,7 +223,7 @@ export default function VisualisasiFiling() {
       setVisualizationData({});
     }
     
-    setLoading(false);
+    setDataLoading(false);
   }, [userBidangId, supabase]);
 
   useEffect(() => {
@@ -292,7 +263,7 @@ export default function VisualisasiFiling() {
     setExpandedFolders(newExpanded);
   };
 
-  if (authLoading || loading) {
+  if (isAuthLoading || dataLoading) {
     return <Loading />; 
   }
 
@@ -408,18 +379,18 @@ export default function VisualisasiFiling() {
                                       folder.arsip_list.map((arsip) => (
                                         <div
                                           key={arsip.id_arsip_aktif}
-                                          className="flex items-center justify-between gap-2 py-1 px-2 hover:bg-muted/20 rounded transition"
+                                          className="flex items-center justify-between gap-1 py-1 px-2 hover:bg-muted/20 rounded transition"
                                           style={{ minWidth: 0 }}
                                         >
-                                          <div className="flex items-center gap-2 min-w-0 w-full">
+                                          <div className="flex items-center gap-1 min-w-0 w-full">
                                             <FileText size={14} className="text-blue-600 flex-shrink-0" />
                                             <span className="text-xs font-medium flex-shrink-0 w-[60px] text-right">[{arsip.nomor_berkas}]</span>
                                             <span className="text-xs font-medium flex-shrink-0 w-[80px] truncate">{arsip.kode_klasifikasi}</span>
                                             <span className="text-xs text-muted-foreground truncate max-w-[140px]">{arsip.uraian_informasi}</span>
                                           </div>
-                                          <div className="flex items-center gap-2 flex-shrink-0">
-                                            <span
-                                              className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                          <div className="flex items-center gap-1 flex-shrink-0">
+                                            {/* <span
+                                              className={`px-2 py-1 text-xs font-medium   rounded-full ${
                                                 arsip.status_persetujuan === "Disetujui"
                                                   ? "bg-green-100 text-green-700"
                                                   : arsip.status_persetujuan === "Ditolak"
@@ -430,7 +401,7 @@ export default function VisualisasiFiling() {
                                               }`}
                                             >
                                               {arsip.status_persetujuan || "N/A"}
-                                            </span>
+                                            </span> */}
                                             <button
                                               onClick={() => router.push(`/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`)}
                                               className="p-1 rounded text-blue-600 hover:bg-blue-50 transition"

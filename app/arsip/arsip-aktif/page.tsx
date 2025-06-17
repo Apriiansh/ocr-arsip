@@ -8,9 +8,13 @@ import Loading from "./loading";
 function ArsipAktifContent() {
   const formLogic = useArsipAktifForm();
 
-  if (formLogic.authLoading || formLogic.ocrLoading) {
+  if (formLogic.isAuthLoading || formLogic.ocrLoading) {
     return <Loading />;
-  } 
+  }
+
+  if (formLogic.authError) {
+    return <div className="flex items-center justify-center h-full text-red-500">Error Autentikasi: {formLogic.authError}</div>;
+  }
 
   return <ArsipAktifFormUI {...formLogic} />;
 }

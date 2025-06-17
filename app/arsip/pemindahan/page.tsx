@@ -11,24 +11,21 @@ import { BeritaAcaraForm } from "./components/BeritaAcaraForm";
 import { PemindahanForm } from "./components/PemindahanForm";
 import { ApprovalStatus } from "./components/ApprovalStatus";
 import { SuccessConfirmation } from "./components/SuccessConfirmation";
+import { useAuth } from "@/context/AuthContext"; // Impor useAuth
 import { sendDepartmentHeadNotification, sendRoleNotification } from "@/utils/notificationService";
 import Loading from "./loading";
 
 export default function PemindahanArsip() {
 	const supabase = createClient();
 	const router = useRouter();
+	const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
 
 	// State untuk autentikasi dan data pengguna
-	const [authLoading, setAuthLoading] = useState(true);
-	const [userRole, setUserRole] = useState<string | null>(null);
-	const [userBidangId, setUserBidangId] = useState<number | null>(null);
-	const [userId, setUserId] = useState<string | null>(null);
-
 	// State untuk halaman dan langkah proses
 	const [currentStep, setCurrentStep] = useState(1);
 	const [currentPage, setCurrentPage] = useState(1);
 	const [totalPages, setTotalPages] = useState(1);
-	const [loading, setLoading] = useState(true);
+	const [dataLoading, setDataLoading] = useState(true); // Ganti nama state loading data
 	const itemsPerPage = 10;
 
 	// State untuk pencarian dan filter
@@ -76,79 +73,265 @@ export default function PemindahanArsip() {
 	// Tambahkan state untuk process ID
 	const [processId, setProcessId] = useState<string | null>(null);
 
-	useEffect(() => {
-		const checkAuth = async () => {
-			setAuthLoading(true);
-			const { data: { session } } = await supabase.auth.getSession();
+	const loadExistingProcess = useCallback(async () => {
+		if (!user?.id) return; 
+		setDataLoading(true); // Set loading true di awal
+		try {
+			// Check for process_id in URL
+			const urlParams = new URLSearchParams(window.location.search);
+			const processIdFromUrl = urlParams.get('process_id');
 
-			if (!session) {
-				console.warn("No active session, redirecting to sign-in.");
-				router.push(SIGN_IN_PATH);
-				setAuthLoading(false);
+			let processQuery = supabase
+				.from('pemindahan_process')
+				.select('*')
+				.eq('user_id', user.id) 
+				.eq('is_completed', false);
+
+			// If process_id is provided in URL, use that specific process
+			if (processIdFromUrl) {
+				processQuery = processQuery.eq('id', processIdFromUrl);
+			}
+
+			const { data: processes, error } = await processQuery
+				.order('created_at', { ascending: false })
+				.limit(1);
+
+			if (error) {
+				console.error('Error loading process:', error);
+				setDataLoading(false); // Set loading false jika error
 				return;
 			}
 
-			// Jika ada sesi, periksa peran pengguna
-			const userId = session.user.id;
-			setUserId(userId);
+			if (processes && processes.length > 0) {
+				const process = processes[0];
+				setProcessId(process.id);
 
-			try {
-				const { data: userData, error: userFetchError } = await supabase
-					.from("users")
-					.select("role, id_bidang_fkey, nama")
-					.eq("user_id", userId)
+				// Load selected arsip details if there are selected_arsip_ids
+				let validArsip: ArsipAktif[] = [];
+				if (process.selected_arsip_ids && Array.isArray(process.selected_arsip_ids) && process.selected_arsip_ids.length > 0) {
+					const { data: arsipData } = await supabase
+						.from('arsip_aktif')
+						.select('*')
+						.in('id_arsip_aktif', process.selected_arsip_ids);
+
+					// Validasi: hanya ambil arsip yang benar-benar ada
+					const arsipListFetched = (arsipData || []).filter(a => !!a);
+					const validArsipIds = arsipListFetched.map(a => a.id_arsip_aktif);
+					const missingArsipIds = process.selected_arsip_ids.filter((id: any) => !validArsipIds.includes(id));
+
+					// Transformasi data arsip agar field retensi_data, label, inaktif, nasib_akhir terisi
+					let klasifikasiMap = new Map();
+					const uniqueBaseKodeKlasifikasi = Array.from(new Set(arsipListFetched.map(a => a.kode_klasifikasi ? a.kode_klasifikasi.split('/')[0].trim() : '').filter(Boolean)));
+					if (uniqueBaseKodeKlasifikasi.length > 0) {
+						const { data: allKlasifikasiData } = await supabase
+							.from('klasifikasi_arsip')
+							.select('kode_klasifikasi, label, aktif, inaktif, nasib_akhir')
+							.in('kode_klasifikasi', uniqueBaseKodeKlasifikasi);
+						if (allKlasifikasiData) {
+							klasifikasiMap = new Map(allKlasifikasiData.map(k => [
+								k.kode_klasifikasi ? k.kode_klasifikasi.trim() : '',
+								{ label: k.label, aktif: k.aktif, inaktif: k.inaktif, nasib_akhir: k.nasib_akhir }
+							]));
+						}
+					}
+
+					validArsip = arsipListFetched.map((arsip: any) => {
+						const baseKodeKlasifikasi = arsip.kode_klasifikasi ? arsip.kode_klasifikasi.split('/')[0] : '';
+						const trimmedBaseKode = baseKodeKlasifikasi.trim();
+						let klasifikasiData = klasifikasiMap.get(trimmedBaseKode);
+						return {
+							...arsip,
+							retensi_data: klasifikasiData && typeof klasifikasiData.inaktif !== 'undefined' && typeof klasifikasiData.nasib_akhir !== 'undefined' ? {
+								aktif: klasifikasiData.aktif,
+								inaktif: klasifikasiData.inaktif,
+								nasib_akhir: klasifikasiData.nasib_akhir,
+								label: klasifikasiData.label
+							} : null,
+							is_retention_expired: false,
+							lokasi_penyimpanan: {
+								id_bidang_fkey: arsip.lokasi_penyimpanan?.id_bidang_fkey || "",
+								no_filing_cabinet: arsip.lokasi_penyimpanan?.no_filing_cabinet || "",
+								no_laci: arsip.lokasi_penyimpanan?.no_laci || "",
+								no_folder: arsip.lokasi_penyimpanan?.no_folder || ""
+							}
+						} as ArsipAktif;
+					});
+
+					if (validArsip.length === 0) {
+						// Semua arsip hilang, reset proses
+						setSelectedArsip([]);
+						setCurrentStep(1);
+						setBeritaAcara({
+							nomor_berita_acara: "",
+							tanggal_berita_acara: getISODateString(new Date()),
+							keterangan: "",
+							dasar: "Jadwal Retensi Arsip (JRA) dan peraturan kearsipan yang berlaku"
+						});
+						setPemindahanInfo({
+							lokasi_simpan: "",
+							// nomor_boks: "",
+							jenis: "",
+							jangka_simpan_inaktif: 0,
+							nasib_akhir: "",
+							kategori_arsip: "Arsip Konvensional",
+							keterangan: ""
+						});
+						setApprovalStatus({
+							kepala_bidang: {
+								status: "Menunggu",
+								verified_by: null,
+								verified_at: null,
+							},
+							sekretaris: {
+								status: "Menunggu",
+								verified_by: null,
+								verified_at: null,
+							}
+						});
+						setProcessStatus({ status: 'idle' });
+						toast.error('Data arsip yang dipilih sudah tidak tersedia. Proses diulang.');
+						setDataLoading(false); // Set loading false
+						return;
+					}
+
+					if (missingArsipIds.length > 0) {
+						// Ada arsip yang hilang, update proses di database
+						await supabase
+							.from('pemindahan_process')
+							.update({ selected_arsip_ids: validArsip.map(a => a.id_arsip_aktif) })
+							.eq('id', process.id);
+						toast.warn('Beberapa arsip yang dipilih sudah tidak tersedia dan dihapus dari proses.');
+					}
+				}
+				setSelectedArsip(validArsip);
+
+				// Jika selectedArsip kosong, paksa ke step 1
+				if (!validArsip || validArsip.length === 0) {
+					setCurrentStep(1);
+				} else {
+					setCurrentStep(process.current_step);
+				}
+
+				// Set other process data with default values if null
+				setBeritaAcara(process.berita_acara && typeof process.berita_acara === 'object' ? process.berita_acara : {
+					nomor_berita_acara: "",
+					tanggal_berita_acara: getISODateString(new Date()),
+					keterangan: "",
+					dasar: "Jadwal Retensi Arsip (JRA) dan peraturan kearsipan yang berlaku"
+				});
+
+				setPemindahanInfo(process.pemindahan_info && typeof process.pemindahan_info === 'object' ? { ...process.pemindahan_info, arsip_edits: process.pemindahan_info.arsip_edits || [] } : {
+					lokasi_simpan: "",
+					// nomor_boks: "",
+					jenis: "",
+					jangka_simpan_inaktif: 0,
+					nasib_akhir: "",
+					kategori_arsip: "Arsip Konvensional",
+					keterangan: "",
+					arsip_edits: []
+				});
+
+				setApprovalStatus(process.approval_status || {
+					kepala_bidang: {
+						status: "Menunggu",
+						verified_by: null,
+						verified_at: null,
+					},
+					sekretaris: {
+						status: "Menunggu",
+						verified_by: null,
+						verified_at: null,
+					}
+				});
+
+				setProcessStatus(process.process_status || { status: 'idle' });
+			} else {
+				// Create new process with default values
+				const { data: newProcess, error: createError } = await supabase
+					.from('pemindahan_process')
+					.insert({
+						user_id: user.id, 
+						current_step: 1,
+						selected_arsip_ids: [],
+						berita_acara: null,
+						pemindahan_info: null,
+						approval_status: {
+							kepala_bidang: {
+								status: "Menunggu",
+								verified_by: null,
+								verified_at: null,
+							},
+							sekretaris: {
+								status: "Menunggu",
+								verified_by: null,
+								verified_at: null,
+							}
+						},
+						process_status: { status: 'idle' },
+						is_completed: false
+					})
+					.select()
 					.single();
 
-				if (userFetchError) {
-					console.error("Error fetching user role:", userFetchError);
-					toast.error("Gagal memverifikasi peran pengguna: " + userFetchError.message);
-					setAuthLoading(false);
-					router.push(SIGN_IN_PATH);
+				if (createError) {
+					console.error('Error creating process:', createError);
+					setDataLoading(false); // Set loading false jika error
 					return;
 				}
 
-				if (!userData || !userData.role) {
-					toast.warn("Data pengguna tidak lengkap. Silakan login kembali.");
-					setAuthLoading(false);
-					router.push(SIGN_IN_PATH);
-					return;
-				}
+				setProcessId(newProcess.id);
+				setSelectedArsip([]);
+			}
+		} catch (error) {
+			console.error('Error in loadExistingProcess:', error);
+		} finally {
+			setDataLoading(false); // Set loading false di akhir
+		}
+	}, [user, supabase, setProcessId, setCurrentStep, setSelectedArsip, setBeritaAcara, setPemindahanInfo, setApprovalStatus, setProcessStatus, setDataLoading]);
 
-				setUserRole(userData.role);
-				setUserBidangId(userData.id_bidang_fkey);
+	useEffect(() => {
+		const fetchDataBasedOnAuth = async () => {
+			// Jika AuthContext masih loading, tunggu
+			if (isAuthLoading) return;
 
-				if (!ALLOWED_ROLES.includes(userData.role)) {
-					console.warn(`User role "${userData.role}" is not authorized for this page. Redirecting.`);
-					toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini. Peran Anda: " + userData.role);
-					setAuthLoading(false);
-					router.push(DEFAULT_HOME_PATH);
-					return;
-				}
-			} catch (error: unknown) {
-				const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-				console.error("Unexpected error fetching user role:", errorMessage);
-				toast.error("Terjadi kesalahan saat verifikasi peran: " + errorMessage);
-				setAuthLoading(false);
-				router.push(SIGN_IN_PATH);
+			// Jika ada error dari AuthContext, tampilkan dan jangan lanjutkan
+			if (authError) {
+				toast.error(`Error Autentikasi: ${authError}`);
+				setDataLoading(false);
 				return;
 			}
 
-			setAuthLoading(false);
-		};
+			// Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+			if (!user) {
+				setDataLoading(false);
+				return;
+			}
 
-		checkAuth();
-	}, [router, supabase]);
+			// Verifikasi role pengguna (ALLOWED_ROLES dari utils)
+			if (!ALLOWED_ROLES.includes(user.role || "")) {
+				toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
+				router.push(DEFAULT_HOME_PATH); // atau halaman default yang sesuai
+				setDataLoading(false);
+				return;
+			}
+
+			// Jika semua pengecekan lolos, panggil loadExistingProcess
+			// (fetchArsipAktif akan dipanggil oleh useEffect lain jika currentStep === 1)
+			loadExistingProcess();
+		};
+		fetchDataBasedOnAuth(); // Panggil fungsi di atas
+	}, [user, isAuthLoading, authError, router, loadExistingProcess, DEFAULT_HOME_PATH]);
 
 	// Update the fetchArsipAktif function to properly transform the data
 	const fetchArsipAktif = useCallback(async () => {
-		if (userBidangId === null) {
-			setLoading(false);
+		if (user?.id_bidang_fkey === null || user?.id_bidang_fkey === undefined) {
+			setDataLoading(false);
 			setArsipList([]);
 			setTotalPages(0);
 			return;
 		}
 
-		setLoading(true);
+		// setDataLoading(true); // Hapus ini, biarkan loading dikontrol oleh useEffect utama atau SelectArsip internal
 		const startIndex = (currentPage - 1) * itemsPerPage;
 		const endIndex = startIndex + itemsPerPage - 1;
 
@@ -177,7 +360,7 @@ export default function PemindahanArsip() {
                         no_folder
                     )
                 `, { count: "exact" })
-				.eq('lokasi_penyimpanan.id_bidang_fkey', userBidangId)
+				.eq('lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey)
 				.eq('status_persetujuan', 'Disetujui');
 
 			const { data: initialArsipData, error, count } = await query
@@ -195,7 +378,7 @@ export default function PemindahanArsip() {
 			if (!initialArsipData || initialArsipData.length === 0) {
 				setArsipList([]);
 				setTotalPages(Math.ceil((count || 0) / itemsPerPage));
-				setLoading(false);
+				setDataLoading(false);
 				return;
 			}
 
@@ -309,14 +492,8 @@ export default function PemindahanArsip() {
 			setTotalPages(0);
 		}
 
-		setLoading(false);
-	}, [currentPage, filterMode, itemsPerPage, selectedArsip, supabase, userBidangId]);
-
-	useEffect(() => {
-		if (userBidangId !== null && currentStep === 1) {
-			fetchArsipAktif();
-		}
-	}, [userBidangId, currentPage, fetchArsipAktif, filterMode, currentStep]);
+		// setDataLoading(false); // Hapus ini
+	}, [currentPage, filterMode, itemsPerPage, selectedArsip, supabase, user]); // Ganti userBidangId dengan user
 
 	// Effect untuk polling status persetujuan ketika di langkah 4
 	useEffect(() => {
@@ -366,6 +543,13 @@ export default function PemindahanArsip() {
 			}
 		};
 	}, [currentStep, beritaAcara.nomor_berita_acara, processId, supabase, approvalStatus.kepala_bidang.status, approvalStatus.sekretaris.status]); // Tambahkan dependensi yang relevan
+
+	// useEffect untuk memanggil fetchArsipAktif ketika user, currentStep, atau filter berubah
+	useEffect(() => {
+		if (user?.id_bidang_fkey && currentStep === 1 && !isAuthLoading) {
+			fetchArsipAktif();
+		}
+	}, [user, isAuthLoading, currentPage, fetchArsipAktif, filterMode, currentStep]);
 
 	// Handler untuk pencarian
 	const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -508,222 +692,10 @@ export default function PemindahanArsip() {
 		setCurrentStep(currentStep - 1);
 	};
 
-	// Fungsi untuk load process yang ada
-	const loadExistingProcess = async () => {
-		if (!userId) return;
-
-		try {
-			// Check for process_id in URL
-			const urlParams = new URLSearchParams(window.location.search);
-			const processIdFromUrl = urlParams.get('process_id');
-
-			let processQuery = supabase
-				.from('pemindahan_process')
-				.select('*')
-				.eq('user_id', userId)
-				.eq('is_completed', false);
-
-			// If process_id is provided in URL, use that specific process
-			if (processIdFromUrl) {
-				processQuery = processQuery.eq('id', processIdFromUrl);
-			}
-
-			const { data: processes, error } = await processQuery
-				.order('created_at', { ascending: false })
-				.limit(1);
-
-			if (error) {
-				console.error('Error loading process:', error);
-				return;
-			}
-
-			if (processes && processes.length > 0) {
-				const process = processes[0];
-				setProcessId(process.id);
-
-				// Load selected arsip details if there are selected_arsip_ids
-				let validArsip: ArsipAktif[] = [];
-				if (process.selected_arsip_ids && Array.isArray(process.selected_arsip_ids) && process.selected_arsip_ids.length > 0) {
-					const { data: arsipData } = await supabase
-						.from('arsip_aktif')
-						.select('*')
-						.in('id_arsip_aktif', process.selected_arsip_ids);
-
-					// Validasi: hanya ambil arsip yang benar-benar ada
-					const arsipListFetched = (arsipData || []).filter(a => !!a);
-					const validArsipIds = arsipListFetched.map(a => a.id_arsip_aktif);
-					const missingArsipIds = process.selected_arsip_ids.filter((id: any) => !validArsipIds.includes(id));
-
-					// Transformasi data arsip agar field retensi_data, label, inaktif, nasib_akhir terisi
-					let klasifikasiMap = new Map();
-					const uniqueBaseKodeKlasifikasi = Array.from(new Set(arsipListFetched.map(a => a.kode_klasifikasi ? a.kode_klasifikasi.split('/')[0].trim() : '').filter(Boolean)));
-					if (uniqueBaseKodeKlasifikasi.length > 0) {
-						const { data: allKlasifikasiData } = await supabase
-							.from('klasifikasi_arsip')
-							.select('kode_klasifikasi, label, aktif, inaktif, nasib_akhir')
-							.in('kode_klasifikasi', uniqueBaseKodeKlasifikasi);
-						if (allKlasifikasiData) {
-							klasifikasiMap = new Map(allKlasifikasiData.map(k => [
-								k.kode_klasifikasi ? k.kode_klasifikasi.trim() : '',
-								{ label: k.label, aktif: k.aktif, inaktif: k.inaktif, nasib_akhir: k.nasib_akhir }
-							]));
-						}
-					}
-
-					validArsip = arsipListFetched.map((arsip: any) => {
-						const baseKodeKlasifikasi = arsip.kode_klasifikasi ? arsip.kode_klasifikasi.split('/')[0] : '';
-						const trimmedBaseKode = baseKodeKlasifikasi.trim();
-						let klasifikasiData = klasifikasiMap.get(trimmedBaseKode);
-						return {
-							...arsip,
-							retensi_data: klasifikasiData && typeof klasifikasiData.inaktif !== 'undefined' && typeof klasifikasiData.nasib_akhir !== 'undefined' ? {
-								aktif: klasifikasiData.aktif,
-								inaktif: klasifikasiData.inaktif,
-								nasib_akhir: klasifikasiData.nasib_akhir,
-								label: klasifikasiData.label
-							} : null,
-							is_retention_expired: false,
-							lokasi_penyimpanan: {
-								id_bidang_fkey: arsip.lokasi_penyimpanan?.id_bidang_fkey || "",
-								no_filing_cabinet: arsip.lokasi_penyimpanan?.no_filing_cabinet || "",
-								no_laci: arsip.lokasi_penyimpanan?.no_laci || "",
-								no_folder: arsip.lokasi_penyimpanan?.no_folder || ""
-							}
-						} as ArsipAktif;
-					});
-
-					if (validArsip.length === 0) {
-						// Semua arsip hilang, reset proses
-						setSelectedArsip([]);
-						setCurrentStep(1);
-						setBeritaAcara({
-							nomor_berita_acara: "",
-							tanggal_berita_acara: getISODateString(new Date()),
-							keterangan: "",
-							dasar: "Jadwal Retensi Arsip (JRA) dan peraturan kearsipan yang berlaku"
-						});
-						setPemindahanInfo({
-							lokasi_simpan: "",
-							// nomor_boks: "",
-							jenis: "",
-							jangka_simpan_inaktif: 0,
-							nasib_akhir: "",
-							kategori_arsip: "Arsip Konvensional",
-							keterangan: ""
-						});
-						setApprovalStatus({
-							kepala_bidang: {
-								status: "Menunggu",
-								verified_by: null,
-								verified_at: null,
-							},
-							sekretaris: {
-								status: "Menunggu",
-								verified_by: null,
-								verified_at: null,
-							}
-						});
-						setProcessStatus({ status: 'idle' });
-						toast.error('Data arsip yang dipilih sudah tidak tersedia. Proses diulang.');
-						return;
-					}
-
-					if (missingArsipIds.length > 0) {
-						// Ada arsip yang hilang, update proses di database
-						await supabase
-							.from('pemindahan_process')
-							.update({ selected_arsip_ids: validArsip.map(a => a.id_arsip_aktif) })
-							.eq('id', process.id);
-						toast.warn('Beberapa arsip yang dipilih sudah tidak tersedia dan dihapus dari proses.');
-					}
-				}
-				setSelectedArsip(validArsip);
-
-				// Jika selectedArsip kosong, paksa ke step 1
-				if (!validArsip || validArsip.length === 0) {
-					setCurrentStep(1);
-				} else {
-					setCurrentStep(process.current_step);
-				}
-
-				// Set other process data with default values if null
-				setBeritaAcara(process.berita_acara && typeof process.berita_acara === 'object' ? process.berita_acara : {
-					nomor_berita_acara: "",
-					tanggal_berita_acara: getISODateString(new Date()),
-					keterangan: "",
-					dasar: "Jadwal Retensi Arsip (JRA) dan peraturan kearsipan yang berlaku"
-				});
-
-				setPemindahanInfo(process.pemindahan_info && typeof process.pemindahan_info === 'object' ? { ...process.pemindahan_info, arsip_edits: process.pemindahan_info.arsip_edits || [] } : {
-					lokasi_simpan: "",
-					// nomor_boks: "",
-					jenis: "",
-					jangka_simpan_inaktif: 0,
-					nasib_akhir: "",
-					kategori_arsip: "Arsip Konvensional",
-					keterangan: "",
-					arsip_edits: []
-				});
-
-				setApprovalStatus(process.approval_status || {
-					kepala_bidang: {
-						status: "Menunggu",
-						verified_by: null,
-						verified_at: null,
-					},
-					sekretaris: {
-						status: "Menunggu",
-						verified_by: null,
-						verified_at: null,
-					}
-				});
-
-				setProcessStatus(process.process_status || { status: 'idle' });
-			} else {
-				// Create new process with default values
-				const { data: newProcess, error: createError } = await supabase
-					.from('pemindahan_process')
-					.insert({
-						user_id: userId,
-						current_step: 1,
-						selected_arsip_ids: [],
-						berita_acara: null,
-						pemindahan_info: null,
-						approval_status: {
-							kepala_bidang: {
-								status: "Menunggu",
-								verified_by: null,
-								verified_at: null,
-							},
-							sekretaris: {
-								status: "Menunggu",
-								verified_by: null,
-								verified_at: null,
-							}
-						},
-						process_status: { status: 'idle' },
-						is_completed: false
-					})
-					.select()
-					.single();
-
-				if (createError) {
-					console.error('Error creating process:', createError);
-					return;
-				}
-
-				setProcessId(newProcess.id);
-				setSelectedArsip([]);
-			}
-		} catch (error) {
-			console.error('Error:', error);
-		}
-	};
-
 	// Load process saat komponen mount
 	useEffect(() => {
 		loadExistingProcess();
-	}, [userId]);
+	}, [user?.id, loadExistingProcess]); 
 
 	// Update process di database
 	const updateProcess = async () => {
@@ -763,11 +735,11 @@ export default function PemindahanArsip() {
 		beritaAcaraId: string,
 		nomorBeritaAcara: string
 	) => {
-		try {
-			// Kirim ke Kepala Bidang (pastikan userBidangId ada)
-			if (userBidangId) {
+		try {			
+			// Kirim ke Kepala Bidang (pastikan user.id_bidang_fkey ada)
+			if (user?.id_bidang_fkey) {
 				await sendDepartmentHeadNotification(
-					userBidangId,
+					user.id_bidang_fkey,
 					"Permintaan Persetujuan Pemindahan Arsip",
 					`Permintaan pemindahan arsip dengan nomor ${nomorBeritaAcara} memerlukan persetujuan Anda.`,
 					`/arsip/pemindahan/verifikasi/kepala-bidang`,
@@ -789,13 +761,13 @@ export default function PemindahanArsip() {
 
 	// Modify handlePemindahanArsip to include notifications
 	const handlePemindahanArsip = async () => {
-		if (!userId || selectedArsip.length === 0) {
+		if (!user?.id || selectedArsip.length === 0) { // Gunakan user.id dari context
 			toast.error("Data tidak lengkap untuk pemindahan arsip.");
 			return;
 		}
 
 		try {
-			setLoading(true);
+			setDataLoading(true);
 			setProcessStatus({ status: 'processing' });
 
 			// Update process status first to prevent duplicate clicks
@@ -836,8 +808,8 @@ export default function PemindahanArsip() {
 					// Show success message and navigate to step 5
 					toast.success("Arsip sudah berhasil dipindahkan sebelumnya.");
 					setProcessStatus({ status: 'completed' });
-					setCurrentStep(5);
-					setLoading(false);
+					setCurrentStep(5);					
+					setDataLoading(false);
 					return;
 				}
 			}
@@ -851,7 +823,7 @@ export default function PemindahanArsip() {
 					tanggal_berita_acara: beritaAcara.tanggal_berita_acara,
 					keterangan: beritaAcara.keterangan,
 					dasar: beritaAcara.dasar,
-					user_id: userId,
+					user_id: user.id, // Gunakan user.id dari context
 					jumlah_arsip: selectedArsip.length,
 					status: "Menunggu",
 					// approval_status tidak lagi disimpan di berita_acara_pemindahan
@@ -869,7 +841,7 @@ export default function PemindahanArsip() {
 
 				beritaAcaraId = beritaAcaraData.id;
 
-				await sendNotificationToApprover(userBidangId, beritaAcaraId, beritaAcara.nomor_berita_acara);
+				await sendNotificationToApprover(user.id_bidang_fkey ?? null, beritaAcaraId, beritaAcara.nomor_berita_acara); // Gunakan user.id_bidang_fkey
 			} else {
 				beritaAcaraId = existingBA.id;
 			}
@@ -889,7 +861,7 @@ export default function PemindahanArsip() {
 
 			// 2. Update process record
 			const processData = {
-				user_id: userId,
+				user_id: user.id, // Gunakan user.id dari context
 				current_step: currentStep,
 				selected_arsip_ids: selectedArsip.map(arsip => arsip.id_arsip_aktif),
 				berita_acara: beritaAcara,
@@ -900,7 +872,7 @@ export default function PemindahanArsip() {
 			};
 
 			console.log("[PEMINDAHAN LOG] Process data for update/insert:", {
-				user_id: userId,
+				user_id: user.id, // Gunakan user.id dari context
 				current_step: currentStep,
 				selected_arsip_count: selectedArsip.length,
 				approval_status: approvalStatus
@@ -1061,7 +1033,7 @@ export default function PemindahanArsip() {
 					id_arsip_aktif: arsip.id_arsip_aktif,
 					tanggal_pindah: new Date().toISOString().split('T')[0],
 					file_url: arsip.file_url,
-					user_id: userId,
+					user_id: user.id, // Gunakan user.id dari context
 					status_persetujuan: "Menunggu",
 					id_berita_acara: beritaAcaraId,
 				});
@@ -1128,7 +1100,7 @@ export default function PemindahanArsip() {
 			const errorStatus: ProcessStatus = { status: 'error', message: (error as Error).message };
 			setProcessStatus(errorStatus);
 		} finally {
-			setLoading(false);
+			setDataLoading(false);
 		}
 	};
 
@@ -1167,7 +1139,7 @@ export default function PemindahanArsip() {
 
 	// Fungsi untuk mereset proses
 	const handleResetProcess = async () => {
-		if (!processId || !userId) return;
+		if (!processId || !user?.id) return; // Gunakan user.id dari context
 
 		try {
 			// Set process saat ini sebagai completed
@@ -1186,7 +1158,7 @@ export default function PemindahanArsip() {
 			const { data: newProcess, error: createError } = await supabase
 				.from('pemindahan_process')
 				.insert({
-					user_id: userId,
+					user_id: user.id, // Gunakan user.id dari context
 					current_step: 1,
 					selected_arsip_ids: [],
 					berita_acara: null,
@@ -1256,18 +1228,27 @@ export default function PemindahanArsip() {
 		}
 	};
 
-	if (authLoading) {
+	// Tampilkan loading jika AuthContext masih loading atau data sedang dimuat
+	if (isAuthLoading || dataLoading) {
 		return <Loading />;
+	}
+
+	// Tampilkan error dari AuthContext
+	if (authError) {
+		return (
+			<div className="w-full h-full p-6 flex items-center justify-center">
+				<div className="text-center text-red-500">Error Autentikasi: {authError}</div>
+			</div>);
 	}
 
 	return (
 		<div className="w-full h-full p-6"> {/* Consistent page padding */}
 			<div className="max-w-7xl mx-auto w-full h-full flex flex-col"> {/* Content wrapper */}
-				<div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col"> {/* Main content card */}
+        <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col"> {/* Main content card */}
 					{/* Header */}
 					<div className="bg-primary/10 px-6 py-4"> {/* Adjusted header background */}
 						<div className="flex justify-between items-center mb-4">
-							<h2 className="text-2xl font-bold flex items-center gap-2 text-primary"> {/* Adjusted title color */}
+							<h2 className="text-2xl font-bold flex items-center gap-2 text-primary"> 
 								<FolderOpen size={24} /> Pemindahan Arsip Aktif ke Inaktif
 							</h2>
 							<button
@@ -1304,7 +1285,7 @@ export default function PemindahanArsip() {
 								))}
 							</div>
 							<div className="ml-4 text-muted-foreground text-sm"> {/* Adjusted step label color */}
-								{currentStep === 1 && "Pilih Arsip"}
+								{currentStep === 1 && "Pilih Arsip"} 
 								{currentStep === 2 && "Berita Acara"}
 								{currentStep === 3 && "Persetujuan"}
 								{currentStep === 4 && "Informasi Pemindahan"}
@@ -1316,7 +1297,7 @@ export default function PemindahanArsip() {
 					{/* Content */}
 					{currentStep === 1 && (
 						<SelectArsip
-							loading={loading}
+							loading={dataLoading && currentStep === 1} // Hanya set loading=true jika memang data arsip sedang dimuat
 							arsipList={filteredArsip}
 							selectedArsip={selectedArsip}
 							searchTerm={searchTerm}
@@ -1337,7 +1318,7 @@ export default function PemindahanArsip() {
 						<BeritaAcaraForm
 							beritaAcara={beritaAcara}
 							selectedArsipCount={selectedArsip.length}
-							userBidangId={userBidangId || 0}
+							userBidangId={user?.id_bidang_fkey || 0} // Gunakan user.id_bidang_fkey
 							onChange={handleBeritaAcaraChange}
 						/>
 					)}
@@ -1376,7 +1357,7 @@ export default function PemindahanArsip() {
 							{currentStep > 1 ? (
 								<button
 									onClick={handlePrevStep}
-									disabled={loading}
+									disabled={dataLoading} // Gunakan dataLoading
 									className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
 								>
 									<ChevronLeft size={18} />
@@ -1387,7 +1368,7 @@ export default function PemindahanArsip() {
 							)}
 							<button
 								onClick={handleNextStep}
-								disabled={loading}
+								disabled={dataLoading} // Gunakan dataLoading
 								className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
 							>
 								{currentStep === 4 && approvalStatus.kepala_bidang.status === "Disetujui" && approvalStatus.sekretaris.status === "Disetujui" ? (

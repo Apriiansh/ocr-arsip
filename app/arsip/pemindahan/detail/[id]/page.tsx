@@ -7,7 +7,7 @@ import { useRouter, useParams } from "next/navigation";
 import { toast } from "react-toastify";
 import { ArrowLeft, FileText, User, Calendar, CheckCircle, Clock, Info, Archive, Building, Box, Download } from "lucide-react";
 import Link from "next/link";
-import { SIGN_IN_PATH } from "../../utils"; // Sesuaikan path
+import { useAuth } from "@/context/AuthContext"; // Impor useAuth
 import { ArsipAktif, BeritaAcara, PemindahanInfo, ApprovalStatus as IApprovalStatus, ProcessStatus } from "../../types"; // Sesuaikan path
 import { pdf } from '@react-pdf/renderer'; // Import untuk PDF
 import { BeritaAcaraPDF } from '../../components/BeritaAcaraPDF'; // Import komponen PDF
@@ -126,29 +126,36 @@ export default function PemindahanDetailPage() {
     const router = useRouter();
     const params = useParams();
     const processId = params.id as string;
+    const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
 
     const [detail, setDetail] = useState<ProcessDetail | null>(null);
     const [loading, setLoading] = useState(true);
-    const [authLoading, setAuthLoading] = useState(true);
     const [isClient, setIsClient] = useState(false); // Untuk PDFDownloadLink
 
     useEffect(() => {
-        const checkAuth = async () => {
-            setAuthLoading(true);
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                router.push(SIGN_IN_PATH);
-                return;
-            }
-            // Anda bisa menambahkan pengecekan peran di sini jika diperlukan
-            setAuthLoading(false);
-        };
         setIsClient(true); // Set isClient menjadi true setelah mount
-        checkAuth();
-    }, [router, supabase]);
+        // Logika autentikasi sekarang ditangani oleh AuthContext
+        // dan useEffect di bawah yang bergantung pada user dari AuthContext
+    }, []);
 
     useEffect(() => {
-        if (!processId || authLoading) return;
+        if (isAuthLoading) return; // Tunggu AuthContext selesai loading
+
+        if (authError) {
+            toast.error(`Error Autentikasi: ${authError}`);
+            // AuthContext mungkin sudah redirect, tapi bisa tambahkan fallback jika perlu
+            // router.push("/sign-in"); 
+            setLoading(false);
+            return;
+        }
+
+        if (!user) {
+            // AuthContext seharusnya sudah menangani redirect jika user tidak ada
+            setLoading(false);
+            return;
+        };
+
+        if (!processId) return;
 
         const fetchDetail = async () => {
             setLoading(true);
@@ -428,9 +435,9 @@ export default function PemindahanDetailPage() {
         };
 
         fetchDetail();
-    }, [processId, authLoading, supabase, router]);
+    }, [processId, user, isAuthLoading, authError, supabase, router]); // Tambahkan user, isAuthLoading, authError
 
-    if (authLoading || loading) {
+    if (isAuthLoading || loading) {
         return (
             <DetailLoadingSkeleton />
         );

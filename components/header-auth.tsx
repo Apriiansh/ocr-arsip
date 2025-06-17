@@ -1,4 +1,3 @@
-// components/header-auth.tsx - Option 2: Convert to client component
 "use client";
 
 import { signOutAction } from "@/app/actions";
@@ -6,7 +5,7 @@ import { hasEnvVars } from "@/utils/supabase/check-env-vars";
 import Link from "next/link";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { createClient } from "@/utils/supabase/client"; // Note: using client, not server
+import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { User } from "@supabase/supabase-js";

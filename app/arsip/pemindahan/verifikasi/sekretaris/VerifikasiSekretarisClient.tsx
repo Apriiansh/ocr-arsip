@@ -7,6 +7,8 @@ import { toast } from "react-toastify";
 import { FileText, Check, X, Eye, Inbox, AlertTriangle, User, CalendarDays, Building } from "lucide-react";
 import Link from "next/link";
 import { sendUserNotification } from "@/utils/notificationService";
+import { useAuth } from "@/context/AuthContext";
+import Loading from "./loading"; // Impor komponen Loading
 
 interface VerificationRequest {
   id: string;
@@ -57,68 +59,15 @@ export default function VerifikasiSekretarisClient() {
   const supabase = createClient();
   const router = useRouter();
   const [requests, setRequests] = useState<VerificationRequest[]>([]);
-  const [historyRequests, setHistoryRequests] = useState<VerificationRequest[]>([]); // State untuk riwayat
-  const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<string>("");
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null); // State untuk menyimpan ID pengguna yang login
-  // Sekretaris tidak memerlukan userBidangId untuk filter, jadi bisa dihapus jika tidak digunakan di tempat lain
-
-  useEffect(() => {
-  const checkAuth = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        router.push("/sign-in");
-        return;
-      }
-      setCurrentUserId(session.user.id); // Simpan ID pengguna yang login
-
-      // Fetch user role
-      const { data: userData } = await supabase
-        .from("users")
-        .select("role") // Sekretaris tidak perlu id_bidang_fkey untuk filter utama
-        .eq("user_id", session.user.id)
-        .single()
-        .throwOnError(); // Ensure errors are properly thrown
-
-      if (!userData) {
-        console.error("No user data found");
-        toast.error("Data pengguna tidak ditemukan");
-        router.push("/");
-        setLoading(false);
-        return;
-      }
-
-      console.log("User data fetched successfully:", userData);
-      setUserRole(userData.role);
-
-      // Only allow Sekretaris
-      if (userData.role !== "Sekretaris") {
-        toast.error("Anda tidak memiliki akses ke halaman ini");
-        router.push("/");
-        return;
-      }
-    } catch (error: any) {
-      console.error("Auth check error:", error);
-      const message = (error && typeof error.message === 'string') ? error.message : (error ? String(error) : "Unknown error");
-      toast.error(`Terjadi kesalahan saat memeriksa autentikasi: ${message}`);
-      router.push("/");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  checkAuth();
-}, [supabase, router]);
+  const [historyRequests, setHistoryRequests] = useState<VerificationRequest[]>([]); 
+  const { user, isLoading: isAuthLoading, error: authError } = useAuth(); 
+  const [dataLoading, setDataLoading] = useState(true); 
 
   const fetchRequests = useCallback(async () => {
     try {
-      setLoading(true);
+      setDataLoading(true);
       console.log("Fetching requests for role: Sekretaris");
-
-      // Fetch PENDING requests for Sekretaris
-      // Kondisi: Kepala Bidang sudah "Disetujui" DAN status Sekretaris masih "Menunggu"
+ 
       let pendingQuery = supabase
         .from("pemindahan_process")
         .select(`
@@ -130,7 +79,6 @@ export default function VerifikasiSekretarisClient() {
         `)
         .order("created_at", { ascending: false });
 
-      // Sekretaris hanya melihat yang sudah disetujui Kepala Bidang dan status sekretarisnya "Menunggu"
       pendingQuery = pendingQuery.eq('approval_status->kepala_bidang->>status', 'Disetujui');
       pendingQuery = pendingQuery.eq('approval_status->sekretaris->>status', 'Menunggu');
 
@@ -142,7 +90,6 @@ export default function VerifikasiSekretarisClient() {
         // Don't throw, try to fetch history
       }
 
-      // Fetch HISTORY requests (Disetujui atau Ditolak oleh Sekretaris ini)
       let historyQuery = supabase
         .from("pemindahan_process")
         .select(`
@@ -156,8 +103,8 @@ export default function VerifikasiSekretarisClient() {
 
       // Filter untuk yang sudah diverifikasi (Disetujui atau Ditolak) OLEH Sekretaris ini
       historyQuery = historyQuery.in('approval_status->sekretaris->>status', ['Disetujui', 'Ditolak']);
-      if (currentUserId) { // currentUserId harus sudah terisi
-        historyQuery = historyQuery.eq('approval_status->sekretaris->>verified_by', currentUserId);
+      if (user?.id) { // Gunakan user.id dari context
+        historyQuery = historyQuery.eq('approval_status->sekretaris->>verified_by', user.id);
       }
 
       const { data: historyProcessData, error: historyProcessError } = await historyQuery;
@@ -171,7 +118,7 @@ export default function VerifikasiSekretarisClient() {
         console.log("No pending or history process data found");
         setRequests([]);
         setHistoryRequests([]);
-        setLoading(false);
+        setDataLoading(false);
         return;
       }
 
@@ -285,23 +232,48 @@ export default function VerifikasiSekretarisClient() {
       console.error("Error fetching requests:", error);
       toast.error("Gagal memuat data permintaan");
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
-  }, [supabase, currentUserId]); // Dependensi utama adalah supabase dan currentUserId
+  }, [supabase, user]); // Ganti currentUserId dengan user
 
-  // useEffect untuk memanggil fetchRequests setelah userRole dan currentUserId terisi
   useEffect(() => {
-    if (userRole === "Sekretaris" && currentUserId) {
+    const fetchDataBasedOnAuth = async () => {
+      // Jika AuthContext masih loading, tunggu
+      if (isAuthLoading) return;
+
+      // Jika ada error dari AuthContext, tampilkan dan jangan lanjutkan
+      if (authError) {
+        toast.error(`Error Autentikasi: ${authError}`);
+        setDataLoading(false);
+        return;
+      }
+
+      // Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+      if (!user) {
+        setDataLoading(false);
+        return;
+      }
+
+      // Verifikasi role pengguna
+      if (user.role !== "Sekretaris") {
+        toast.error("Anda tidak memiliki akses ke halaman ini.");
+        router.push("/"); // atau halaman default yang sesuai
+        setDataLoading(false);
+        return;
+      }
+
+      // Jika semua pengecekan lolos, panggil fetchRequests
       fetchRequests();
-    }
-  }, [userRole, currentUserId, fetchRequests]); // fetchRequests ditambahkan sebagai dependensi
+    };
+    fetchDataBasedOnAuth();
+  }, [user, isAuthLoading, authError, router, fetchRequests]);
 
   const handleVerification = async (id: string, isApproved: boolean) => {
     try {
       const statusField = "sekretaris"; // Pasti Sekretaris
       const newStatus = isApproved ? "Disetujui" : "Ditolak";
-
-      if (!currentUserId) {
+      // Gunakan user.id dari context
+      if (!user?.id) {
         toast.error("Sesi pengguna tidak valid. Silakan login kembali.");
         return;
       }
@@ -335,7 +307,7 @@ export default function VerifikasiSekretarisClient() {
         ...currentApprovalStatus,
         [statusField]: { // Ubah menjadi objek
           status: newStatus,
-          verified_by: currentUserId,
+          verified_by: user.id, // Gunakan user.id dari context
           verified_at: new Date().toISOString(),
         }
       };
@@ -392,8 +364,13 @@ export default function VerifikasiSekretarisClient() {
     });
   };
 
-  if (loading) {
-    return null;
+  // Tampilkan loading jika AuthContext masih loading atau data sedang dimuat
+  if (isAuthLoading || dataLoading) {
+    return <Loading />; // Gunakan komponen Loading yang sudah diimpor
+  }
+
+  if (authError) {
+    return <div className="flex items-center justify-center h-full text-red-500">Error Autentikasi: {authError}</div>;
   }
 
   return (

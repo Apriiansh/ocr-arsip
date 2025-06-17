@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Menu, X, ChevronDown, ChevronRight, User, Settings, FileText, BarChart, Users, Home, Bell, LogOut } from "lucide-react"; // Archive icon is no longer needed
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { signOutAction } from "@/app/actions";
+import { useAuth } from "@/context/AuthContext"; // Impor useAuth
 
 // Constants for roles and styling
 const ROLES = {
@@ -28,17 +29,16 @@ type DropdownRefs = {
 };
 
 export default function Navbar() {
-  const supabase = createClient();
+  const { user, isLoading: isAuthLoading, signOut, error: authError } = useAuth(); // Gunakan useAuth
   const router = useRouter();
   const pathname = usePathname();
+  const supabase = createClient(); // Masih diperlukan untuk realtime notifikasi
 
   // State management
   const [openDropdown, setOpenDropdown] = useState<DropdownType>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<SubmenuType>(null); // For desktop hover submenus
   const [mobileSubmenuOpen, setMobileSubmenuOpen] = useState<SubmenuType>(null); // For mobile accordion submenus
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [userRole, setUserRole] = useState(ROLES.PEGAWAI);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -55,77 +55,8 @@ export default function Navbar() {
     return pathname.startsWith(href);
   }, [pathname]);
 
-  // Fetch user data and notifications
-  const fetchUserDataAndNotifications = useCallback(async (currentUser: SupabaseUser | null) => {
-    if (!currentUser) {
-      setUserRole(ROLES.PEGAWAI);
-      setUnreadCount(0);
-      return;
-    }
-
-    const userId = currentUser.id;
-    try {
-      // Fetch user role
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("role")
-        .eq("user_id", userId)
-        .single();
-
-      if (userError) {
-        console.error("Error fetching user role:", userError);
-        setUserRole(ROLES.PEGAWAI);
-      } else if (userData) {
-        setUserRole(userData.role || ROLES.PEGAWAI);
-      } else {
-        console.warn(`No user data found for userId: ${userId}. Defaulting role.`);
-        setUserRole(ROLES.PEGAWAI);
-      }
-
-      // Fetch unread notifications count
-      const { count, error: countError } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("is_read", false);
-
-      if (countError) {
-        console.error("Error fetching notification count:", countError);
-        setUnreadCount(0);
-      } else {
-        setUnreadCount(count || 0);
-      }
-    } catch (error) {
-      console.error("Unexpected error in fetchUserDataAndNotifications:", error);
-      setUserRole(ROLES.PEGAWAI);
-      setUnreadCount(0);
-    }
-  }, [supabase]);
-
-  // Check session and set up auth listener
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      setUser(currentUser);
-      await fetchUserDataAndNotifications(currentUser);
-    };
-
-    checkSession();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const currentUser = session?.user || null;
-      setUser(currentUser);
-      await fetchUserDataAndNotifications(currentUser);
-
-      if (!currentUser && pathname !== "/sign-in" && pathname !== "/sign-up") {
-        router.push("/sign-in");
-      }
-    });
-
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, [fetchUserDataAndNotifications, pathname, router, supabase]);
+  // Ambil userRole dari context
+  const userRole = user?.role || ROLES.PEGAWAI;
 
   // Realtime listener for notifications count
   useEffect(() => {
@@ -153,6 +84,27 @@ export default function Navbar() {
     return () => {
       supabase.removeChannel(channel);
     };
+  }, [user, supabase]);
+
+  // Fetch initial unread notifications count when user is available
+  useEffect(() => {
+    const fetchInitialUnreadCount = async () => {
+      if (user?.id) {
+        const { count, error: countError } = await supabase
+          .from("notifications")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("is_read", false);
+
+        if (countError) {
+          console.error("Error fetching initial notification count:", countError);
+          setUnreadCount(0);
+        } else {
+          setUnreadCount(count || 0);
+        }
+      }
+    };
+    fetchInitialUnreadCount();
   }, [user, supabase]);
 
   // Reset active submenu when main dropdown closes
@@ -258,27 +210,14 @@ export default function Navbar() {
     try {
       closeAllMenusAndDropdowns();
       setIsLoggingOut(true);
-
-      const result = await signOutAction();
-
-      if (result?.success !== false) {
-        setUser(null);
-        setUserRole(ROLES.PEGAWAI);
-
-        // Redirect ke halaman login
-        router.push("/sign-in");
-        router.refresh(); // Force refresh untuk memastikan state ter-reset
-      } else {
-        // Ada error tapi tetap redirect (karena mungkin session sudah expired)
-        console.error("Logout error:", result.error);
-        router.push("/sign-in");
-        router.refresh();
-      }
+      await signOut(); // Panggil signOut dari AuthContext
+      // Redirect dan refresh sudah ditangani oleh AuthContext
     } catch (error: unknown) {
       console.error("Unexpected error during logout:", error);
-      // Tetap redirect ke login meskipun ada error
-      router.push("/sign-in");
-      router.refresh();
+      // AuthContext mungkin sudah menangani redirect,
+      // tapi sebagai fallback, bisa tambahkan di sini jika perlu
+      // router.push("/sign-in");
+      // router.refresh();
     } finally {
       setIsLoggingOut(false);
     }
@@ -769,6 +708,11 @@ export default function Navbar() {
 
   // Get user display name
   const displayName = user?.user_metadata?.display_name || user?.email;
+
+  if (isAuthLoading) {
+    // Tampilkan versi loading dari Navbar atau null
+    return <nav className="bg-primary text-primary-foreground border-b border-border shadow-sm sticky top-0 z-50 h-16 flex items-center justify-center">Memuat Navigasi...</nav>;
+  }
 
   return (
     <nav className="bg-primary text-primary-foreground border-b border-border shadow-sm sticky top-0 z-50">

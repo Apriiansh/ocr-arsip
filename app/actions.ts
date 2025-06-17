@@ -6,243 +6,245 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/utils/supabase/admin";
 
-async function isCurrentUserAdmin() {
+// ===== TYPES & CONSTANTS =====
+interface ApiResponse<T = any> {
+  success: boolean;
+  message?: string;
+  data?: T;
+  error?: string;
+  type?: 'success' | 'error';
+  redirectTo?: string;
+}
+
+const ROLE_PATHS: Record<string, string> = {
+  "Admin": "/admin",
+  "Kepala_Bidang": "/unit-pengolah",
+  "Sekretaris": "/unit-kearsipan", 
+  "Pegawai": "/user",
+  "Kepala_Dinas": "/kepala-dinas",
+};
+
+const LEADERSHIP_ROLES = ["Kepala Bidang", "Kepala Dinas", "Sekretaris"];
+
+// ===== UTILITY FUNCTIONS =====
+function determineUserRole(jabatan: string): string {
+  const roleMap: Record<string, string> = {
+    "Kepala Bidang": "Kepala_Bidang",
+    "Kepala Dinas": "Kepala_Dinas",
+    "Sekretaris": "Sekretaris"
+  };
+  return roleMap[jabatan] || "Pegawai";
+}
+
+function validateRequiredFields(fields: Record<string, any>, requiredKeys: string[]): string | null {
+  const missingFields = requiredKeys.filter(key => !fields[key]);
+  return missingFields.length > 0 ? `Field berikut wajib diisi: ${missingFields.join(', ')}` : null;
+}
+
+function parseIntSafely(value: string | null, fieldName: string): { value: number | null; error: string | null } {
+  if (!value) return { value: null, error: null };
+  const parsed = parseInt(value, 10);
+  return isNaN(parsed) 
+    ? { value: null, error: `${fieldName} tidak valid` }
+    : { value: parsed, error: null };
+}
+
+async function getAuthenticatedUser(supabase: any): Promise<{ user: any; error: string | null }> {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+      return { user: null, error: "Sesi tidak ditemukan atau tidak valid" };
+    }
+    return { user, error: null };
+  } catch (err) {
+    return { user: null, error: "Gagal mengambil data pengguna" };
+  }
+}
+
+async function getUserRole(supabase: any, userId: string): Promise<{ role: string | null; error: string | null }> {
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("role")
+      .eq("user_id", userId)
+      .single();
+    
+    if (error) return { role: null, error: "Gagal mengambil role pengguna" };
+    return { role: data?.role || null, error: null };
+  } catch (err) {
+    return { role: null, error: "Gagal mengambil role pengguna" };
+  }
+}
+
+async function checkExistingLeadershipRole(supabase: any, jabatan: string, idBidang: number): Promise<boolean> {
+  if (!LEADERSHIP_ROLES.includes(jabatan)) return false;
+  
+  const { data } = await supabase
+    .from("users")
+    .select("user_id")
+    .eq("jabatan", jabatan)
+    .eq("id_bidang_fkey", idBidang)
+    .maybeSingle();
+    
+  return !!data;
+}
+
+// ===== ADMIN AUTHORIZATION =====
+async function isCurrentUserAdmin(): Promise<boolean> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getAuthenticatedUser(supabase);
   
   if (!user) return false;
   
-  const { data: userData } = await supabase
-    .from("users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-    
-  return userData?.role === 'Admin';
+  const { role } = await getUserRole(supabase, user.id);
+  return role === 'Admin';
 }
 
-export const signUpAction = async (formData: FormData) => {
-  const email = formData.get("email")?.toString();
-  const password = formData.get("password")?.toString();
-  const nama = formData.get("nama")?.toString();
-  const nip = formData.get("nip")?.toString();
-  const pangkat = formData.get("pangkat")?.toString();
-  const idBidang = formData.get("idBidang")?.toString();
-  const jabatan = formData.get("jabatan")?.toString();
+function requireAdmin(): Promise<ApiResponse> {
+  return Promise.resolve({ success: false, message: "Access denied. Admin role required." });
+}
+
+// ===== AUTH ACTIONS =====
+export const signUpAction = async (formData: FormData): Promise<ApiResponse> => {
+  const fields = {
+    email: formData.get("email")?.toString(),
+    password: formData.get("password")?.toString(),
+    nama: formData.get("nama")?.toString(),
+    nip: formData.get("nip")?.toString(),
+    pangkat: formData.get("pangkat")?.toString(),
+    idBidang: formData.get("idBidang")?.toString(),
+    jabatan: formData.get("jabatan")?.toString(),
+  };
+
+  // Validate required fields
+  const validationError = validateRequiredFields(fields, Object.keys(fields));
+  if (validationError) {
+    return { success: false, type: "error", message: validationError };
+  }
+
+  const { email, password, nama, nip, pangkat, idBidang, jabatan } = fields;
+  const role = determineUserRole(jabatan!);
 
   const supabase = await createClient();
   const origin = (await headers()).get("origin");
 
-  if (!email || !password || !nama || !nip || !pangkat || !idBidang || !jabatan) {
-    return {
-      type: "error",
-      message: "Semua field wajib diisi"
-    };
+  // Parse and validate bidang ID
+  const { value: parsedIdBidang, error: parseError } = parseIntSafely(idBidang!, "ID Bidang");
+  if (parseError) {
+    return { success: false, type: "error", message: parseError };
   }
 
-  let role = "Pegawai";
-  if (jabatan === "Kepala Bidang") {
-    role = "Kepala_Bidang";
-  } else if (jabatan === "Kepala Dinas") {
-    role = "Kepala_Dinas";
-  } else if (jabatan === "Sekretaris") {
-    role = "Sekretaris";
-  }
-
-  if (
-    jabatan === "Kepala Bidang" ||
-    jabatan === "Kepala Dinas" ||
-    jabatan === "Sekretaris"
-  ) {
-    const { data: existing, error: checkError } = await supabase
-      .from("users")
-      .select("user_id")
-      .eq("jabatan", jabatan)
-      .eq("id_bidang_fkey", Number(idBidang))
-      .maybeSingle();
-
-    if (checkError) {
-      return {
-        type: "error",
-        message: "Gagal memeriksa jabatan di database"
-      };
-    }
-    if (existing) {
-      return {
-        type: "error",
-        message: `Jabatan ${jabatan} sudah terdaftar di bidang ini`
-      };
-    }
-  }
-
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: `${origin}/auth/callback`,
-    },
-  });
-
-  if (error) {
-    console.error(error.code + " " + error.message);
-    return {
-      type: "error",
-      message: error.message
-    };
-  }
-
-  const userId = data.user?.id;
-  if (!userId) {
-    return {
-      type: "error",
-      message: "Gagal mendapatkan User ID"
-    };
-  }
-
-  const { error: userError } = await supabase.from("users").insert([
-    {
-      user_id: userId,
-      nama,
-      nip,
-      pangkat,
-      email,
-      id_bidang_fkey: Number(idBidang),
-      jabatan,
-      role,
-    },
-  ]);
-
-  if (userError) {
-    console.error(
-      "SIGNUP_ACTION_USER_INSERT_ERROR for email:", email,
-      "jabatan:", jabatan, "role:", role, "idBidang:", idBidang,
-      "Error:", JSON.stringify(userError, null, 2)
-    );
-    return {
-      type: "error",
-      message: userError.message
-    };
-  }
-
-  return {
-    type: "success",
-    message: "Pendaftaran Berhasil"
-  };
-};
-
-export const signInAction = async (formData: FormData) => {
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-  const supabase = await createClient();
-
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
+  // Check for existing leadership roles
+  if (await checkExistingLeadershipRole(supabase, jabatan!, parsedIdBidang!)) {
     return {
       success: false,
-      error: error.message
+      type: "error",
+      message: `Jabatan ${jabatan} sudah terdaftar di bidang ini`
     };
   }
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user) {
-      const { data: userData, error: userDbError } = await supabase
-        .from("users")
-        .select("role")
-        .eq("user_id", user.id)
-        .single();
+    // Create auth user
+    const { data, error } = await supabase.auth.signUp({
+      email: email!,
+      password: password!,
+      options: { emailRedirectTo: `${origin}/auth/callback` },
+    });
 
-      if (userDbError) {
-        console.error(`signInAction: Error fetching role for user ${user.id}:`, JSON.stringify(userDbError, null, 2));
-        return {
-          success: false,
-          error: "Gagal mengambil data pengguna"
-        };
-      } else if (userData?.role) {
-        const ROLE_PATHS: Record<string, string> = {
-          "Admin": "/admin",
-          "Kepala_Bidang": "/unit-pengolah",
-          "Sekretaris": "/unit-kearsipan", 
-          "Pegawai": "/user",
-          "Kepala_Dinas": "/kepala-dinas",
-        };
-        const redirectPath = ROLE_PATHS[userData.role] || "/user";
-        console.log(`signInAction: User ${user.id} has role ${userData.role}. Redirecting to ${redirectPath}.`);
-        
-        return {
-          success: true,
-          redirectTo: redirectPath
-        };
-      } else {
-        console.warn(`signInAction: User ${user.id} found, but role not found in users table or userData is null. userData:`, userData);
-        return {
-          success: false,
-          error: "Role pengguna tidak ditemukan"
-        };
-      }
-    } else {
-      console.warn(`signInAction: supabase.auth.getUser() returned no user immediately after successful signInWithPassword.`);
-      return {
-        success: false,
-        error: "Gagal mendapatkan data pengguna"
-      };
-    }
-  } catch (roleError) {
-    console.error("Error getting user role:", roleError);
-    return {
-      success: false,
-      error: "Terjadi kesalahan saat login"
-    };
+    if (error) throw new Error(error.message);
+
+    const userId = data.user?.id;
+    if (!userId) throw new Error("Gagal mendapatkan User ID");
+
+    // Create user profile
+    const { error: userError } = await supabase.from("users").insert([{
+      user_id: userId,
+      nama: nama!,
+      nip: nip!,
+      pangkat: pangkat!,
+      email: email!,
+      id_bidang_fkey: parsedIdBidang!,
+      jabatan: jabatan!,
+      role,
+    }]);
+
+    if (userError) throw userError;
+
+    return { success: true, type: "success", message: "Pendaftaran Berhasil" };
+  } catch (error: any) {
+    console.error("SIGNUP_ACTION_ERROR:", error);
+    return { success: false, type: "error", message: error.message || "Gagal melakukan pendaftaran" };
+  }
+};
+
+export const signInAction = async (formData: FormData): Promise<ApiResponse> => {
+  const email = formData.get("email") as string;
+  const password = formData.get("password") as string;
+  
+  if (!email || !password) {
+    return { success: false, error: "Email dan password wajib diisi" };
+  }
+
+  const supabase = await createClient();
+
+  try {
+    // Authenticate user
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+
+    // Get user and role
+    const { user, error: userError } = await getAuthenticatedUser(supabase);
+    if (userError || !user) throw new Error(userError || "Gagal mendapatkan data pengguna");
+
+    const { role, error: roleError } = await getUserRole(supabase, user.id);
+    if (roleError || !role) throw new Error(roleError || "Role pengguna tidak ditemukan");
+
+    const redirectPath = ROLE_PATHS[role] || "/user";
+    
+    return { success: true, redirectTo: redirectPath };
+  } catch (error: any) {
+    console.error("SIGNIN_ACTION_ERROR:", error);
+    return { success: false, error: error.message || "Terjadi kesalahan saat login" };
   }
 };
 
 export const forgotPasswordAction = async (formData: FormData) => {
   const email = formData.get("email")?.toString();
-  const supabase = await createClient();
-  const origin = (await headers()).get("origin");
   const callbackUrl = formData.get("callbackUrl")?.toString();
 
   if (!email) {
     return encodedRedirect("error", "/forgot-password", "Email is required");
   }
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?redirect_to=/protected/reset-password`,
-  });
+  const supabase = await createClient();
+  const origin = (await headers()).get("origin");
 
-  if (error) {
-    console.error(error.message);
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/callback?redirect_to=/protected/reset-password`,
+    });
+
+    if (error) throw error;
+
+    if (callbackUrl) return redirect(callbackUrl);
+
     return encodedRedirect(
-      "error",
+      "success",
       "/forgot-password",
-      "Could not reset password",
+      "Check your email for a link to reset your password.",
     );
+  } catch (error: any) {
+    console.error("FORGOT_PASSWORD_ERROR:", error);
+    return encodedRedirect("error", "/forgot-password", "Could not reset password");
   }
-
-  if (callbackUrl) {
-    return redirect(callbackUrl);
-  }
-
-  return encodedRedirect(
-    "success",
-    "/forgot-password",
-    "Check your email for a link to reset your password.",
-  );
 };
 
 export const resetPasswordAction = async (formData: FormData) => {
-  const supabase = await createClient();
-
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
 
   if (!password || !confirmPassword) {
-    encodedRedirect(
+    return encodedRedirect(
       "error",
       "/protected/reset-password",
       "Password and confirm password are required",
@@ -250,65 +252,52 @@ export const resetPasswordAction = async (formData: FormData) => {
   }
 
   if (password !== confirmPassword) {
-    encodedRedirect(
+    return encodedRedirect(
       "error",
       "/protected/reset-password",
       "Passwords do not match",
     );
   }
 
-  const { error } = await supabase.auth.updateUser({
-    password: password,
-  });
+  const supabase = await createClient();
 
-  if (error) {
-    encodedRedirect(
-      "error",
-      "/protected/reset-password",
-      "Password update failed",
-    );
+  try {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+
+    return encodedRedirect("success", "/sign-in", "Password updated successfully. Please sign in.");
+  } catch (error: any) {
+    console.error("RESET_PASSWORD_ERROR:", error);
+    return encodedRedirect("error", "/protected/reset-password", "Password update failed");
   }
-
-  return encodedRedirect("success", "/sign-in", "Password updated successfully. Please sign in.");
 };
 
-export const signOutAction = async () => {
+export const signOutAction = async (): Promise<ApiResponse> => {
   const supabase = await createClient();
-  const { error } = await supabase.auth.signOut();
   
-  if (error) {
-    return {
-      success: false,
-      error: error.message
-    };
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
-  
-  return {
-    success: true
-  };
 };
 
-export async function getCurrentUserProfile() {
+// ===== USER PROFILE ACTIONS =====
+export async function getCurrentUserProfile(): Promise<ApiResponse> {
   const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { user, error: authError } = await getAuthenticatedUser(supabase);
 
   if (authError || !user) {
-    console.error("getCurrentUserProfile: Error fetching auth user or no user.", authError);
-    return { success: false, message: "Sesi tidak ditemukan atau tidak valid.", data: null };
+    return { success: false, message: authError || "Sesi tidak ditemukan", data: null };
   }
 
   try {
     const { data: userProfile, error: profileError } = await supabase
       .from("users")
       .select(`
-        user_id,
-        nama,
-        email,
-        nip,
-        pangkat,
-        jabatan,
-        role,
-        id_bidang_fkey,
+        user_id, nama, email, nip, pangkat, jabatan, role, id_bidang_fkey,
         daftar_bidang (nama_bidang)
       `)
       .eq("user_id", user.id)
@@ -316,21 +305,18 @@ export async function getCurrentUserProfile() {
 
     if (profileError) throw profileError;
     return { success: true, data: userProfile };
-  } catch (error: unknown) {
-    console.error("Error fetching current user profile:", error);
-    if (error instanceof Error) {
-      return { success: false, message: error.message || "Gagal mengambil data profil pengguna.", data: null };
-    }
-    return { success: false, message: "Gagal mengambil data profil pengguna.", data: null };
+  } catch (error: any) {
+    console.error("GET_PROFILE_ERROR:", error);
+    return { success: false, message: "Gagal mengambil data profil pengguna", data: null };
   }
 }
 
-export async function updateCurrentUserProfileAction(formData: FormData) {
+export async function updateCurrentUserProfileAction(formData: FormData): Promise<ApiResponse> {
   const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const { user, error: authError } = await getAuthenticatedUser(supabase);
 
   if (authError || !user) {
-    return { success: false, message: "Sesi tidak ditemukan atau tidak valid." };
+    return { success: false, message: authError || "Sesi tidak ditemukan" };
   }
 
   const nama = formData.get("nama") as string;
@@ -338,39 +324,35 @@ export async function updateCurrentUserProfileAction(formData: FormData) {
   const pangkat = formData.get("pangkat") as string || null;
 
   if (!nama) {
-    return { success: false, message: "Nama wajib diisi." };
+    return { success: false, message: "Nama wajib diisi" };
   }
 
   try {
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from("users")
       .update({ nama, nip, pangkat })
       .eq("user_id", user.id);
 
-    if (updateError) throw updateError;
-    return { success: true, message: "Profil berhasil diperbarui." };
-  } catch (error: unknown) {
-    console.error("Error updating current user profile:", error);
-    if (error instanceof Error) {
-      return { success: false, message: error.message || "Gagal memperbarui profil." };
-    }
-    return { success: false, message: "Gagal memperbarui profil." };
+    if (error) throw error;
+    return { success: true, message: "Profil berhasil diperbarui" };
+  } catch (error: any) {
+    console.error("UPDATE_PROFILE_ERROR:", error);
+    return { success: false, message: "Gagal memperbarui profil" };
   }
 }
 
-export async function getUsersWithBidangAction(filterRole?: string) {
+// ===== ADMIN ACTIONS =====
+export async function getUsersWithBidangAction(filterRole?: string): Promise<ApiResponse> {
   if (!(await isCurrentUserAdmin())) {
-    return { success: false, message: "Access denied. Admin role required." };
+    return await requireAdmin();
   }
 
   const supabase = createAdminClient();
+  
   try {
     let query = supabase
       .from("users")
-      .select(`
-        *,
-        daftar_bidang (nama_bidang)
-      `)
+      .select(`*, daftar_bidang (nama_bidang)`)
       .order("created_at", { ascending: false });
 
     if (filterRole && filterRole !== "Semua") {
@@ -378,182 +360,160 @@ export async function getUsersWithBidangAction(filterRole?: string) {
     }
 
     const { data, error } = await query;
-
     if (error) throw error;
+    
     return { success: true, data };
-  } catch (error: unknown) {
-    console.error("Error fetching users:", error);
-    if (error instanceof Error) {
-      return { success: false, message: error.message || "Gagal mengambil data pengguna." };
-    }
-    return { success: false, message: "Gagal mengambil data pengguna." };
+  } catch (error: any) {
+    console.error("GET_USERS_ERROR:", error);
+    return { success: false, message: "Gagal mengambil data pengguna" };
   }
 }
 
-export async function adminCreateUserAction(formData: FormData) {
+export async function adminCreateUserAction(formData: FormData): Promise<ApiResponse> {
   if (!(await isCurrentUserAdmin())) {
-    return { success: false, message: "Access denied. Admin role required." };
+    return await requireAdmin();
+  }
+
+  const fields = {
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
+    nama: formData.get("nama") as string,
+    nip: formData.get("nip") as string || null,
+    pangkat: formData.get("pangkat") as string || null,
+    jabatan: formData.get("jabatan") as string,
+    role: formData.get("role") as string,
+    id_bidang_fkey_str: formData.get("id_bidang_fkey") as string,
+  };
+
+  // Validate required fields
+  const requiredFields = ["email", "password", "nama", "jabatan", "role", "id_bidang_fkey_str"];
+  const validationError = validateRequiredFields(fields, requiredFields);
+  if (validationError) {
+    return { success: false, message: validationError };
+  }
+
+  const { value: id_bidang_fkey, error: parseError } = parseIntSafely(fields.id_bidang_fkey_str, "ID Bidang");
+  if (parseError) {
+    return { success: false, message: parseError };
   }
 
   const supabase = createAdminClient();
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-  const nama = formData.get("nama") as string;
-  const nip = formData.get("nip") as string || null;
-  const pangkat = formData.get("pangkat") as string || null;
-  const jabatan = formData.get("jabatan") as string;
-  const role = formData.get("role") as string;
-  const id_bidang_fkey_str = formData.get("id_bidang_fkey") as string;
-
-  if (!email || !password || !nama || !jabatan || !role || !id_bidang_fkey_str) {
-    return { success: false, message: "Semua field yang wajib (Email, Password, Nama, Jabatan, Role, Bidang) harus diisi." };
-  }
-
-  const id_bidang_fkey = parseInt(id_bidang_fkey_str, 10);
-  if (isNaN(id_bidang_fkey)) {
-      return { success: false, message: "ID Bidang tidak valid." };
-  }
 
   try {
+    // Create auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
+      email: fields.email,
+      password: fields.password,
       email_confirm: true,
     });
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error("Gagal membuat pengguna di sistem autentikasi.");
+    if (authError || !authData.user) throw authError || new Error("Gagal membuat pengguna");
 
     const userId = authData.user.id;
 
-    // 2. Insert user details into public.users
+    // Insert user profile
     const { error: publicUserError } = await supabase.from("users").insert({
       user_id: userId,
-      email,
-      nama,
-      nip,
-      pangkat,
-      jabatan,
-      role,
-      id_bidang_fkey,
+      email: fields.email,
+      nama: fields.nama,
+      nip: fields.nip,
+      pangkat: fields.pangkat,
+      jabatan: fields.jabatan,
+      role: fields.role,
+      id_bidang_fkey: id_bidang_fkey!,
     });
 
     if (publicUserError) {
+      // Cleanup on failure
       await supabase.auth.admin.deleteUser(userId);
       throw publicUserError;
     }
 
-    return { success: true, message: "Pengguna berhasil dibuat." };
-  } catch (error: unknown) {
-    console.error("Error creating user:", error);
-    if (error instanceof Error) {
-      return { success: false, message: error.message || "Gagal membuat pengguna." };
-    }
-    return { success: false, message: "Gagal membuat pengguna." };
+    return { success: true, message: "Pengguna berhasil dibuat" };
+  } catch (error: any) {
+    console.error("ADMIN_CREATE_USER_ERROR:", error);
+    return { success: false, message: error.message || "Gagal membuat pengguna" };
   }
 }
 
-export async function adminUpdateUserAction(userId: string, formData: FormData) {
+export async function adminUpdateUserAction(userId: string, formData: FormData): Promise<ApiResponse> {
   if (!(await isCurrentUserAdmin())) {
-    return { success: false, message: "Access denied. Admin role required." };
+    return await requireAdmin();
+  }
+
+  const fields = {
+    email: formData.get("email") as string,
+    password: formData.get("password") as string | undefined,
+    nama: formData.get("nama") as string,
+    nip: formData.get("nip") as string || null,
+    pangkat: formData.get("pangkat") as string || null,
+    jabatan: formData.get("jabatan") as string,
+    role: formData.get("role") as string,
+    id_bidang_fkey_str: formData.get("id_bidang_fkey") as string,
+  };
+
+  // Validate required fields
+  const requiredFields = ["email", "nama", "jabatan", "role", "id_bidang_fkey_str"];
+  const validationError = validateRequiredFields(fields, requiredFields);
+  if (validationError) {
+    return { success: false, message: validationError };
+  }
+
+  const { value: id_bidang_fkey, error: parseError } = parseIntSafely(fields.id_bidang_fkey_str, "ID Bidang");
+  if (parseError) {
+    return { success: false, message: parseError };
   }
 
   const supabase = createAdminClient();
-  console.log(`[adminUpdateUserAction] Attempting to update user ID: ${userId}`);
-  
-  // Log semua data dari FormData
-  const formEntries: Record<string, FormDataEntryValue> = {};
-  formData.forEach((value, key) => {
-    formEntries[key] = value;
-  });
-  console.log("[adminUpdateUserAction] FormData received:", JSON.stringify(formEntries, null, 2));
-
-  const email = formData.get("email") as string;
-  const newPassword = formData.get("password") as string | undefined; // Optional
-  const nama = formData.get("nama") as string;
-  const nip = formData.get("nip") as string || null;
-  const pangkat = formData.get("pangkat") as string || null;
-  const jabatan = formData.get("jabatan") as string;
-  const role = formData.get("role") as string;
-  const id_bidang_fkey_str = formData.get("id_bidang_fkey") as string;
-
-  console.log(`[adminUpdateUserAction] Parsed form data - Email: ${email}, Nama: ${nama}, Jabatan: ${jabatan}, Role: ${role}, ID Bidang Str: ${id_bidang_fkey_str}, NewPassword provided: ${!!newPassword}`);
-
-  if (!email || !nama || !jabatan || !role || !id_bidang_fkey_str) {
-    console.error("[adminUpdateUserAction] Validation failed: Missing required fields.");
-    return { success: false, message: "Field Email, Nama, Jabatan, Role, dan Bidang wajib diisi." };
-  }
-
-  const id_bidang_fkey = parseInt(id_bidang_fkey_str, 10);
-   if (isNaN(id_bidang_fkey)) {
-      console.error(`[adminUpdateUserAction] Validation failed: Invalid id_bidang_fkey_str: ${id_bidang_fkey_str}`);
-      return { success: false, message: "ID Bidang tidak valid." };
-  }
-  console.log(`[adminUpdateUserAction] Parsed id_bidang_fkey: ${id_bidang_fkey}`);
 
   try {
-    console.log("[adminUpdateUserAction] Attempting to update public.users table...");
+    // Update user profile
     const { error: publicUserError } = await supabase
       .from("users")
       .update({
-        email,
-        nama,
-        nip,
-        pangkat,
-        jabatan,
-        role,
-        id_bidang_fkey,
+        email: fields.email,
+        nama: fields.nama,
+        nip: fields.nip,
+        pangkat: fields.pangkat,
+        jabatan: fields.jabatan,
+        role: fields.role,
+        id_bidang_fkey: id_bidang_fkey!,
       })
       .eq("user_id", userId);
 
-    if (publicUserError) {
-      console.error("[adminUpdateUserAction] Error updating public.users table:", JSON.stringify(publicUserError, null, 2));
-      throw publicUserError;
-    }
-    console.log("[adminUpdateUserAction] Successfully updated public.users table.");
+    if (publicUserError) throw publicUserError;
 
+    // Update auth user if email or password changed
     const authUpdatePayload: { email?: string; password?: string } = {};
-    if (email) authUpdatePayload.email = email;
-    if (newPassword) authUpdatePayload.password = newPassword;
+    if (fields.email) authUpdatePayload.email = fields.email;
+    if (fields.password) authUpdatePayload.password = fields.password;
 
     if (Object.keys(authUpdatePayload).length > 0) {
-      console.log("[adminUpdateUserAction] Attempting to update auth.users with payload:", JSON.stringify(authUpdatePayload, null, 2));
       const { error: authError } = await supabase.auth.admin.updateUserById(userId, authUpdatePayload);
-      if (authError) {
-        console.error("[adminUpdateUserAction] Error updating auth.users:", JSON.stringify(authError, null, 2));
-        throw authError;
-      }
-      console.log("[adminUpdateUserAction] Successfully updated auth.users.");
-    } else {
-      console.log("[adminUpdateUserAction] No changes to email or password for auth.users.");
+      if (authError) throw authError;
     }
 
-    console.log(`[adminUpdateUserAction] User ID: ${userId} updated successfully.`);
-    return { success: true, message: "Pengguna berhasil diperbarui." };
-  } catch (error: unknown) {
-    console.error(`[adminUpdateUserAction] Catch block error for user ID ${userId}:`, JSON.stringify(error, null, 2));
-    if (error instanceof Error) {
-      return { success: false, message: error.message || "Gagal memperbarui pengguna." };
-    }
-    return { success: false, message: "Gagal memperbarui pengguna." };
+    return { success: true, message: "Pengguna berhasil diperbarui" };
+  } catch (error: any) {
+    console.error("ADMIN_UPDATE_USER_ERROR:", error);
+    return { success: false, message: error.message || "Gagal memperbarui pengguna" };
   }
 }
 
-export async function adminDeleteUserAction(userId: string) {
+export async function adminDeleteUserAction(userId: string): Promise<ApiResponse> {
   if (!(await isCurrentUserAdmin())) {
-    return { success: false, message: "Access denied. Admin role required." };
+    return await requireAdmin();
   }
 
   const supabase = createAdminClient();
+  
   try {
     const { error } = await supabase.auth.admin.deleteUser(userId);
     if (error) throw error;
-    return { success: true, message: "Pengguna berhasil dihapus." };
-  } catch (error: unknown) {
-    console.error("Error deleting user:", error);
-    if (error instanceof Error) {
-      return { success: false, message: error.message || "Gagal menghapus pengguna." };
-    }
-    return { success: false, message: "Gagal menghapus pengguna." };
+    
+    return { success: true, message: "Pengguna berhasil dihapus" };
+  } catch (error: any) {
+    console.error("ADMIN_DELETE_USER_ERROR:", error);
+    return { success: false, message: error.message || "Gagal menghapus pengguna" };
   }
 }

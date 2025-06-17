@@ -4,8 +4,10 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { useAuth } from "@/context/AuthContext"; 
 import { FileText, Check, X, Eye, Inbox, AlertTriangle, User, CalendarDays, Building } from "lucide-react";
 import Link from "next/link";
+import Loading from "./loading";
 
 interface VerificationRequest {
   id: string;
@@ -57,77 +59,20 @@ export default function VerifikasiKepalaBidangClient() {
   const router = useRouter();
   const [requests, setRequests] = useState<VerificationRequest[]>([]);
   const [historyRequests, setHistoryRequests] = useState<VerificationRequest[]>([]); // State untuk riwayat
-  const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<string>("");
-  const [userBidangId, setUserBidangId] = useState<string | null>(null); // Tambahkan state untuk ID bidang pengguna
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null); // State untuk menyimpan ID pengguna yang login
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (!session) {
-          router.push("/sign-in");
-          return;
-        }
-        setCurrentUserId(session.user.id); // Simpan ID pengguna yang login
-
-        // Fetch user role - add headers to improve compatibility
-        const { data: userData, error: userError } = await supabase
-          .from("users")
-          .select("role, id_bidang_fkey") // Ambil juga id_bidang_fkey
-          .eq("user_id", session.user.id)
-          .single()
-          .throwOnError(); // Ensure errors are properly thrown
-
-        if (userError) {
-          console.error("User fetch error:", userError);
-          toast.error(`Gagal memverifikasi peran pengguna ${userError}`);
-          router.push("/");
-          setLoading(false);
-          return;
-        }
-
-        if (!userData) {
-          console.error("No user data found");
-          toast.error("Data pengguna tidak ditemukan");
-          router.push("/");
-          setLoading(false);
-          return;
-        }
-
-        console.log("User data fetched successfully:", userData);
-        setUserRole(userData.role);
-        setUserBidangId(userData.id_bidang_fkey); // Simpan ID bidang pengguna
-
-        // Only allow Kepala_Bidang and Sekretaris
-        if (userData.role !== "Kepala_Bidang") {
-          toast.error("Anda tidak memiliki akses ke halaman ini");
-          router.push("/");
-          return;
-        }
-      } catch (error: any) { // Tambahkan tipe 'any' atau 'Error'
-        console.error("Auth check error:", error);
-        const message = (error && typeof error.message === 'string') ? error.message : (error ? String(error) : "Unknown error");
-        toast.error(`Terjadi kesalahan saat memeriksa autentikasi: ${message}`);
-        router.push("/");
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, [supabase, router]);
+  const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
+  const [dataLoading, setDataLoading] = useState(true); // Ganti nama state loading data
 
   const fetchRequests = useCallback(async () => {
     try {
-      if (userBidangId === null) { // Tambahkan guard untuk memastikan userBidangId tidak null
-        console.warn("fetchRequests called, but userBidangId is still null. Aborting.");
+      if (!user?.id_bidang_fkey) { // Gunakan user.id_bidang_fkey dari context
+
+        console.warn("fetchRequests called, but user.id_bidang_fkey is null. Aborting.");
+        setDataLoading(false);
         return;
       }
-      setLoading(true);
+      setDataLoading(true);
       console.log("Fetching requests for role: Kepala_Bidang");
-  
+
       // Fetch PENDING requests
       let pendingQuery = supabase
         .from("pemindahan_process")
@@ -142,9 +87,9 @@ export default function VerifikasiKepalaBidangClient() {
 
       // Kepala Bidang hanya melihat yang status kepala_bidang nya "Menunggu"
       pendingQuery = pendingQuery.eq('approval_status->kepala_bidang->>status', 'Menunggu');
-      
+
       const { data: pendingProcessData, error: pendingProcessError } = await pendingQuery;
-  
+
       if (pendingProcessError) {
         toast.error("Gagal mengambil data proses menunggu: " + pendingProcessError.message);
         console.error("Error fetching pending process data:", pendingProcessError);
@@ -165,9 +110,9 @@ export default function VerifikasiKepalaBidangClient() {
 
       // Filter untuk yang sudah diverifikasi (Disetujui atau Ditolak) OLEH Kepala Bidang ini
       historyQuery = historyQuery.in('approval_status->kepala_bidang->>status', ['Disetujui', 'Ditolak']);
-      // Pastikan juga bahwa yang memverifikasi adalah Kepala Bidang yang sedang login
-      if (currentUserId) { // currentUserId harus sudah terisi
-        historyQuery = historyQuery.eq('approval_status->kepala_bidang->>verified_by', currentUserId);
+      // Pastikan juga bahwa yang memverifikasi adalah Kepala Bidang yang sedang login (gunakan user.id dari context)
+      if (user?.id) {
+        historyQuery = historyQuery.eq('approval_status->kepala_bidang->>verified_by', user.id);
       }
 
       const { data: historyProcessData, error: historyProcessError } = await historyQuery;
@@ -180,10 +125,10 @@ export default function VerifikasiKepalaBidangClient() {
       if ((!pendingProcessData || pendingProcessData.length === 0) && (!historyProcessData || historyProcessData.length === 0)) {
         console.log("No pending or history process data found");
         setRequests([]);
-        setLoading(false);
+        setDataLoading(false);
         return;
       }
-  
+
       const processUserDetails = async (process: any) => { // Helper function
         try {
           console.log(`Fetching user data for user_id: ${process.user_id}`);
@@ -210,7 +155,7 @@ export default function VerifikasiKepalaBidangClient() {
               }
             };
           }
-  
+
           if (!userData) {
             console.warn(`No user data found for user_id: ${process.user_id}`);
             // Return process with placeholder user data
@@ -223,7 +168,7 @@ export default function VerifikasiKepalaBidangClient() {
               }
             };
           }
-  
+
           // Fetch bidang data if available
           let bidangData = { nama_bidang: "Bidang Tidak Diketahui" };
 
@@ -244,12 +189,12 @@ export default function VerifikasiKepalaBidangClient() {
               console.warn(`No bidang data found for id_bidang: ${userData.id_bidang_fkey}`);
             }
           }
-  
+
           // Filter: Kepala Bidang hanya melihat permintaan dari bidangnya sendiri.
           // userData.id_bidang_fkey adalah bidang pengaju.
           // userBidangId adalah bidang Kepala Bidang yang sedang login.
-          if (userData.id_bidang_fkey !== userBidangId) {
-            console.log(`Skipping request: User bidang (${userData.id_bidang_fkey}) doesn't match Kepala Bidang's bidang (${userBidangId})`);
+          if (userData.id_bidang_fkey !== user?.id_bidang_fkey) { // Gunakan user.id_bidang_fkey dari context
+            console.log(`Skipping request: User bidang (${userData.id_bidang_fkey}) doesn't match Kepala Bidang's bidang (${user?.id_bidang_fkey})`);
             return null; // Akan difilter nanti
           }
           return {
@@ -297,23 +242,51 @@ export default function VerifikasiKepalaBidangClient() {
       console.error("Error fetching requests:", error);
       toast.error("Gagal memuat data permintaan");
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
-  }, [supabase, userBidangId, currentUserId]);
+  }, [supabase, user]); // Ganti userBidangId dan currentUserId dengan user
 
-  // useEffect untuk memanggil fetchRequests setelah userBidangId dan userRole terisi
+
   useEffect(() => {
-    if (userRole === "Kepala_Bidang" && userBidangId !== null) {
-      fetchRequests();
-    }
-  }, [userRole, userBidangId, fetchRequests]); // fetchRequests ditambahkan sebagai dependensi karena merupakan useCallback
+    // Define fetchRequests inside useEffect to ensure correct scope
+    const fetchDataBasedOnAuth = async () => {
+      // Jika AuthContext masih loading, tunggu
+      if (isAuthLoading) return;
 
+      // Jika ada error dari AuthContext, tampilkan dan jangan lanjutkan
+      if (authError) {
+        toast.error(`Error Autentikasi: ${authError}`);
+        setDataLoading(false);
+        return;
+      }
+
+      // Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+      if (!user) {
+        setDataLoading(false);
+        return;
+      }
+
+      // Verifikasi role pengguna dan kelengkapan data bidang
+      if (user.role !== "Kepala_Bidang" || !user.id_bidang_fkey) {
+        toast.error("Anda tidak memiliki akses ke halaman ini atau data bidang tidak lengkap.");
+        router.push("/"); // atau halaman default yang sesuai
+        setDataLoading(false);
+        return;
+      }
+
+      fetchRequests();
+    };
+
+    fetchDataBasedOnAuth();
+  }, [user, isAuthLoading, authError, router, fetchRequests]); 
+
+  
   const handleVerification = async (id: string, isApproved: boolean) => {
     try {
       const statusField = "kepala_bidang";
       const newStatus = isApproved ? "Disetujui" : "Ditolak";
 
-      if (!currentUserId) {
+      if (!user?.id) {
         toast.error("Sesi pengguna tidak valid. Silakan login kembali.");
         return;
       }
@@ -341,7 +314,7 @@ export default function VerifikasiKepalaBidangClient() {
         ...currentApprovalStatus,
         [statusField]: {
           status: newStatus,
-          verified_by: currentUserId,
+          verified_by: user.id, 
           verified_at: new Date().toISOString(),
         }
       };
@@ -355,8 +328,6 @@ export default function VerifikasiKepalaBidangClient() {
         toast.error("Gagal memperbarui status");
         return;
       }
-
-      // Notifikasi dihapus, akan dibuat di Sekretaris saja
 
       toast.success(`Berhasil ${isApproved ? "menyetujui" : "menolak"} permintaan`);
       await fetchRequests();
@@ -376,8 +347,12 @@ export default function VerifikasiKepalaBidangClient() {
     });
   };
 
-  if (loading) {
-    return null; 
+  if (isAuthLoading || dataLoading) {
+    return <Loading />; 
+  }
+
+  if (authError) {
+    return <div className="flex items-center justify-center h-full text-red-500">Error Autentikasi: {authError}</div>;
   }
 
   return (

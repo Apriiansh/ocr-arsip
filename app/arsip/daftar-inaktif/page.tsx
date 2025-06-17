@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Search, Trash2, Eye, ArchiveRestore, FolderA
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { exportArsipInaktifToExcel } from './components/DaftarArsipInaktifExcel'; // Impor fungsi ekspor
+import { useAuth } from "@/context/AuthContext"; // Impor useAuth
 import Loading from "./loading";
 
 export interface ArsipInaktifRow {
@@ -33,21 +34,18 @@ export default function DaftarArsipInaktif() {
   const router = useRouter();
   const [arsipList, setArsipList] = useState<ArsipInaktifRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true); // Ganti nama state loading data
+  const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
   const [isReordering, setIsReordering] = useState(false);
   const [isExporting, setIsExporting] = useState(false); // State untuk loading saat export
-  // Tidak memerlukan userBidangId karena arsip inaktif tidak difilter per bidang
-
   const ALLOWED_ROLE = "Pegawai"; // Atau peran lain yang sesuai
-  const SIGN_IN_PATH = "/sign-in";
   const DEFAULT_HOME_PATH = "/";
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    setDataLoading(true);
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage - 1;
 
@@ -76,67 +74,45 @@ export default function DaftarArsipInaktif() {
       setArsipList([]);
       setTotalPages(0);
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
-  }, [currentPage, itemsPerPage, supabase]);
+  }, [currentPage, itemsPerPage, supabase]); // Tidak ada dependensi user di sini karena tidak difilter per user/bidang
 
   useEffect(() => {
     console.log("useEffect (auth check - inaktif): Running checkAuth...");
     const checkAuth = async () => {
-      setAuthLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      try {
-        if (!session) {
-          console.warn("No active session, redirecting to sign-in.");
-          router.push(SIGN_IN_PATH);
-          return; // authLoading akan diatur di finally
-        }
-        console.log(`checkAuth (inaktif): Session found.`);
+      // Jika AuthContext masih loading, tunggu
+      if (isAuthLoading) return;
 
-        const userId = session.user.id;
-        console.log(`checkAuth (inaktif): Fetching user data for ${userId}`);
-        const { data: userData, error: userFetchError } = await supabase
-          .from("users")
-          .select("role") // Hanya butuh role untuk otorisasi halaman
-          .eq("user_id", userId)
-          .single();
+      // Jika ada error dari AuthContext, tampilkan dan jangan lanjutkan
+      if (authError) {
+        toast.error(`Error Autentikasi: ${authError}`);
+        // router.push("/sign-in"); // AuthContext mungkin sudah redirect
+        return;
+      }
 
-        console.log(`checkAuth (inaktif): User data fetched for ${userId}. Data:`, userData, "Error:", userFetchError);
+      // Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+      if (!user) {
+        // router.push("/sign-in"); // AuthContext handles this
+        return;
+      }
 
-        if (userFetchError || !userData || !userData.role) {
-          console.error("Error fetching user role or role is null:", userFetchError);
-          toast.error("Gagal memverifikasi peran pengguna.");
-          router.push(SIGN_IN_PATH);
-          return; // authLoading akan diatur di finally
-        }
-
-        if (userData.role !== ALLOWED_ROLE) {
-          console.warn(`User role "${userData.role}" is not authorized for this page. Redirecting.`);
-          toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini. Peran Anda: " + userData.role);
-          router.push(DEFAULT_HOME_PATH);
-          return; // authLoading akan diatur di finally
-        }
-        // Jika semua pengecekan lolos, panggil fetchData di sini
-        // fetchData(); // Dipindahkan ke useEffect terpisah yang bergantung pada authLoading
-      } catch (error: any) {
-        console.error("checkAuth (inaktif): Unexpected error fetching user role:", error.message);
-        toast.error("Terjadi kesalahan saat verifikasi peran: " + error.message);
-        router.push(SIGN_IN_PATH);
-        // Tidak perlu return di sini karena finally akan dijalankan
-      } finally {
-        setAuthLoading(false); // Pastikan authLoading selalu diatur ke false
+      // Verifikasi role pengguna
+      if (user.role !== ALLOWED_ROLE) {
+        toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
+        router.push(DEFAULT_HOME_PATH); // HomeRedirect akan mengarahkan sesuai peran
+        return;
       }
     };
     checkAuth();
-  }, [router, supabase, SIGN_IN_PATH, DEFAULT_HOME_PATH, ALLOWED_ROLE]);
+  }, [user, isAuthLoading, authError, router, ALLOWED_ROLE, DEFAULT_HOME_PATH]);
 
   // useEffect untuk memanggil fetchData ketika currentPage berubah (setelah auth check awal)
    useEffect(() => {
-    if (!authLoading) { // Hanya fetch jika auth sudah selesai
+    if (!isAuthLoading) { // Hanya fetch jika auth sudah selesai
         fetchData();
     }
-   }, [currentPage, authLoading, fetchData]);
-
+   }, [currentPage, isAuthLoading, fetchData]); 
 
   const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -153,7 +129,7 @@ export default function DaftarArsipInaktif() {
 
   const handleDelete = useCallback(async (idArsip: string) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus arsip inaktif ini?")) return;
-    setLoading(true); // Tampilkan loading saat menghapus
+    setDataLoading(true); // Tampilkan loading saat menghapus
     try {
       const { error } = await supabase
         .from("arsip_inaktif")
@@ -168,7 +144,7 @@ export default function DaftarArsipInaktif() {
         fetchData(); // Refresh data
       }
     } finally {
-      setLoading(false); // Pastikan loading di-set false
+      setDataLoading(false); // Pastikan loading di-set false
     }
   }, [supabase, fetchData]);
 
@@ -243,7 +219,7 @@ export default function DaftarArsipInaktif() {
       toast.error("Terjadi kesalahan saat menata ulang arsip inaktif: " + error.message);
     } finally {
       setIsReordering(false);
-      if (!authLoading) {
+      if (!isAuthLoading) { // Ganti authLoading dengan isAuthLoading
         fetchData();
       } else {
         // Jika authLoading masih true, fetchData akan dipanggil oleh useEffect setelah auth selesai.
@@ -251,7 +227,7 @@ export default function DaftarArsipInaktif() {
     }
   };
 
-  if (authLoading || loading) {
+  if (isAuthLoading || dataLoading) {
     return <Loading />;
   }
 
@@ -267,7 +243,7 @@ export default function DaftarArsipInaktif() {
             <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
               <button
                 onClick={handleExportExcelInaktif}
-                disabled={isExporting || loading || authLoading || filteredArsip.length === 0}
+                disabled={isExporting || dataLoading || isAuthLoading || filteredArsip.length === 0}
                 className="inline-flex items-center gap-2 px-4 py-2 border border-green-600 text-green-600 rounded-lg text-sm font-medium hover:bg-green-600 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <FileSpreadsheet size={18} />
@@ -295,8 +271,8 @@ export default function DaftarArsipInaktif() {
           {/* Action Buttons Section */}
           <div className="px-6 py-3 border-b border-border/50 flex justify-end">
             <button
-              onClick={handleReorderAndSaveNomorBerkasInaktif}
-              disabled={isReordering || loading || authLoading || arsipList.length === 0}
+              onClick={handleReorderAndSaveNomorBerkasInaktif} // Ganti loading dan authLoading
+              disabled={isReordering || dataLoading || isAuthLoading || arsipList.length === 0}
               className="px-4 py-2.5 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 text-sm font-medium"
             >
               {isReordering ? "Menyimpan..." : `Tata Ulang Arsip`}
@@ -388,7 +364,7 @@ export default function DaftarArsipInaktif() {
             <div className="flex justify-between items-center p-4 border-t border-border/50 mt-auto">
               <button
                 onClick={handlePrevPage}
-                disabled={currentPage === 1 || loading}
+                disabled={currentPage === 1 || dataLoading} // Ganti loading
                 className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 <ChevronLeft size={16} />
@@ -399,7 +375,7 @@ export default function DaftarArsipInaktif() {
               </span>
               <button
                 onClick={handleNextPage}
-                disabled={currentPage === totalPages || loading}
+                disabled={currentPage === totalPages || dataLoading} // Ganti loading
                 className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 Selanjutnya

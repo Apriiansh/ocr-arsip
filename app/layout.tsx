@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import LayoutWrapper from "@/components/LayoutWrapper";
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { AuthProvider } from "@/context/AuthContext";
 
 const defaultUrl = process.env.NEXT_PUBLIC_VERCEL_URL
   ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
@@ -38,10 +39,12 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <LayoutWrapper>            
-              {children}
-              <SpeedInsights />
-          </LayoutWrapper>
+          <AuthProvider> 
+            <LayoutWrapper>
+                {children}
+                <SpeedInsights />
+            </LayoutWrapper>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

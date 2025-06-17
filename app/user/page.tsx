@@ -11,6 +11,7 @@ import { Bell, ArrowRight, X as LucideX, Eye } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import Loading from "./loading";
+import { useAuth } from "@/context/AuthContext";
 
 interface Stats {
     totalArsip: number;
@@ -364,10 +365,10 @@ function ArchivesLoadingSkeleton() {
 function DashboardContent() {
     const supabase = createClient();
     const router = useRouter();
+    const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
 
-    const [authLoading, setAuthLoading] = useState(true);
     const [dataLoading, setDataLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [dashboardError, setDashboardError] = useState<string | null>(null);
 
     const [stats, setStats] = useState<Stats>({
         totalArsip: 0,
@@ -379,43 +380,13 @@ function DashboardContent() {
     const [recentArchives, setRecentArchives] = useState<ArsipData[]>([]);
     const [retentionAlerts, setRetentionAlerts] = useState<ArsipJatuhTempo[]>([]);
 
-    const SIGN_IN_PATH = "/sign-in";
     const TOAST_RETENTION_AUTOCLOSE_DURATION = 15000;
     const TOAST_COMMON_CLASSNAME = "!bg-card dark:!bg-card !border !border-border !shadow-xl !rounded-xl w-[340px] max-w-[90vw] [&>.Toastify__toast-body]:!p-0 [&>.Toastify__toast-body]:!m-0 [&>.Toastify__close-button]:!hidden";
-
-    const getUserBidang = useCallback(async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return null;
-
-        const { data: userData } = await supabase
-            .from('users')
-            .select('id_bidang_fkey')
-            .eq('user_id', user.id)
-            .single();
-
-        return userData?.id_bidang_fkey;
-    }, [supabase]);
-
-    const checkAuth = useCallback(async () => {
-        try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) throw new Error("No active session");
-
-            const userBidangId = await getUserBidang();
-            if (!userBidangId) throw new Error("User bidang not found");
-
-            return userBidangId;
-        } catch (authError) {
-            console.error("Auth error:", authError);
-            router.push(SIGN_IN_PATH);
-            return null;
-        }
-    }, [router, supabase, getUserBidang]);
 
     const fetchDashboardData = useCallback(async (bidangId: number) => {
         try {
             setDataLoading(true);
-            setError(null);
+            setDashboardError(null);
 
             // Get lokasi penyimpanan for user's bidang
             const { data: lokasiDiBidang, error: lokasiError } = await supabase
@@ -566,24 +537,27 @@ function DashboardContent() {
         } catch (fetchError) {
             const message = fetchError instanceof Error ? fetchError.message : "Failed to fetch dashboard data";
             console.error("Dashboard error:", message);
-            setError(message);
+            setDashboardError(message);
             toast.error("Gagal memuat data dashboard.");
         } finally {
             setDataLoading(false);
         }
     }, [supabase]);
 
+    // Efek untuk mengambil data dashboard ketika user dan id_bidang_fkey tersedia
     useEffect(() => {
-        const initializeDashboard = async () => {
-            setAuthLoading(true);
-            const bidangId = await checkAuth();
-            if (bidangId) {
-                await fetchDashboardData(bidangId);
-            }
-            setAuthLoading(false);
-        };
-        initializeDashboard();
-    }, [checkAuth, fetchDashboardData]);
+        if (user && user.id_bidang_fkey && !isAuthLoading) {
+            fetchDashboardData(user.id_bidang_fkey);
+        } else if (!isAuthLoading && !user) {
+            // Jika tidak loading auth dan tidak ada user, AuthContext seharusnya sudah redirect
+            // Tapi sebagai fallback, bisa tambahkan redirect di sini atau tampilkan pesan
+            // router.push("/sign-in");
+        } else if (!isAuthLoading && user && !user.id_bidang_fkey) {
+            // User ada tapi tidak ada id_bidang_fkey, ini adalah kondisi error
+            setDashboardError("Data bidang pengguna tidak ditemukan. Silakan hubungi administrator.");
+            setDataLoading(false);
+        }
+    }, [user, isAuthLoading, fetchDashboardData, router]);
 
     // Toast notifications for retention alerts
     useEffect(() => {
@@ -627,16 +601,29 @@ function DashboardContent() {
         }
     }, [retentionAlerts, router]);
 
-    if (authLoading || (dataLoading && !stats.totalArsip)) {
+    // Tampilkan loading jika AuthContext masih loading atau data dashboard sedang dimuat
+    if (isAuthLoading || dataLoading) {
         return <Loading />;
     }
 
-    if (error) {
+    // Jika ada error dari AuthContext (misalnya gagal fetch user details)
+    if (authError) {
+        return (
+            <div className="bg-background flex flex-col items-center justify-center p-6 w-full h-full">
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold text-foreground mb-4">Autentikasi Gagal</h2>
+                    <p className="text-muted-foreground mb-6">{authError}</p>
+                    {/* Tombol untuk kembali ke sign-in mungkin lebih cocok di sini */}
+                </div>
+            </div>
+        );
+    }
+    if (dashboardError) {
         return (
             <div className="bg-background flex flex-col items-center justify-center p-6 w-full h-full">
                 <div className="text-center">
                     <h2 className="text-2xl font-bold text-foreground mb-4">Terjadi Kesalahan</h2>
-                    <p className="text-muted-foreground mb-6">{error}</p>
+                    <p className="text-muted-foreground mb-6">{dashboardError}</p>
                     <button
                         onClick={() => window.location.reload()}
                         className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
@@ -646,6 +633,11 @@ function DashboardContent() {
                 </div>
             </div>
         );
+    }
+    // Jika user tidak ada setelah loading auth selesai (seharusnya sudah di-redirect oleh AuthContext)
+    if (!user) {
+        // Bisa return null atau komponen "Unauthorized" jika AuthContext tidak redirect
+        return <Loading />; // Atau null, karena redirect seharusnya sudah terjadi
     }
 
     return (

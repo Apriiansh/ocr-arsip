@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Search, Trash2, Eye, FileText, FolderOpen, F
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { exportArsipAktifToExcel } from './components/DaftarArsipAktifExcel';
+import { useAuth } from "@/context/AuthContext"; // Impor useAuth
 import Loading from "./loading";
 
 interface LokasiPenyimpanan {
@@ -43,33 +44,31 @@ export default function DaftarArsipAktif() {
   const router = useRouter();
   const [arsipList, setArsipList] = useState<ArsipRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(true); // Untuk data fetch
-  const [authLoading, setAuthLoading] = useState(true); // Untuk auth check
+  const [dataLoading, setDataLoading] = useState(true); // Untuk data fetch
+  const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10; // Jumlah item per halaman
-  const [userBidangId, setUserBidangId] = useState<number | null>(null); // State untuk menyimpan id_bidang pengguna
   const [sortConfig, setSortConfig] = useState<{ key: 'nomor_berkas' | 'kode_klasifikasi'; direction: 'asc' | 'desc' }>({ key: 'nomor_berkas', direction: 'asc' });
   const [isReordering, setIsReordering] = useState(false); // State untuk loading saat reorder
   const [isExporting, setIsExporting] = useState(false); // State untuk loading saat export
   const [statusFilterAktif, setStatusFilterAktif] = useState<string>("Semua"); // "Semua", "Menunggu", "Disetujui", "Ditolak"
 
   const ALLOWED_ROLE = "Pegawai";
-  const SIGN_IN_PATH = "/sign-in";
   const DEFAULT_HOME_PATH = "/"; // Akan di-handle oleh HomeRedirect
 
   const fetchData = useCallback(async () => {
-  if (userBidangId === null) {
-    console.log("fetchData (daftar-aktif): userBidangId is null, aborting fetch.");
-    setLoading(false);
+  if (user?.id_bidang_fkey === null || user?.id_bidang_fkey === undefined) {
+    console.log("fetchData (daftar-aktif): user.id_bidang_fkey is null or undefined, aborting fetch.");
+    setDataLoading(false);
     setArsipList([]);
     setTotalPages(0);
     return;
   }
-  setLoading(true);
+  setDataLoading(true);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage - 1;
-  console.log(`fetchData (daftar-aktif): Querying with userBidangId: ${userBidangId}, page: ${currentPage}, itemsPerPage: ${itemsPerPage}, range: ${startIndex}-${endIndex}`);
+  console.log(`fetchData (daftar-aktif): Querying with user.id_bidang_fkey: ${user.id_bidang_fkey}, page: ${currentPage}, itemsPerPage: ${itemsPerPage}, range: ${startIndex}-${endIndex}`);
 
   try {
     // 1. Fetch IDs from pemindahan_arsip_link to exclude
@@ -81,7 +80,7 @@ export default function DaftarArsipAktif() {
       toast.error("Gagal memuat data link pemindahan: " + pemindahanError.message);
       setArsipList([]);
       setTotalPages(0);
-      setLoading(false);
+      setDataLoading(false);
       return;
     }
 
@@ -110,7 +109,7 @@ export default function DaftarArsipAktif() {
           no_folder
         )
       `, { count: "exact" })
-      .eq('lokasi_penyimpanan.id_bidang_fkey', userBidangId); // Filter berdasarkan id_bidang_fkey dari lokasi_penyimpanan
+      .eq('lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey); // Filter berdasarkan id_bidang_fkey dari lokasi_penyimpanan
 
     if (idsToExclude.length > 0) {
       const idsToExcludeString = `(${idsToExclude.join(',')})`;
@@ -155,82 +154,54 @@ export default function DaftarArsipAktif() {
     setTotalPages(0);
   }
  finally {
-    setLoading(false); 
+    setDataLoading(false);
   }
-}, [currentPage, itemsPerPage, supabase, userBidangId, sortConfig, statusFilterAktif]);
+}, [currentPage, itemsPerPage, supabase, user, sortConfig, statusFilterAktif]); // Ganti userBidangId dengan user
 
   useEffect(() => {
     console.log("useEffect (auth check): Running checkAuth...");
     const checkAuth = async () => {
-      setAuthLoading(true);
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
+      // Jika AuthContext masih loading, tunggu
+      if (isAuthLoading) return;
 
-        if (!session) {
-          console.warn("No active session, redirecting to sign-in.");
-          router.push(SIGN_IN_PATH);
-          return; // authLoading akan diatur di finally
-        }
-        console.log(`checkAuth: Session found.`);
+      // Jika ada error dari AuthContext, tampilkan dan jangan lanjutkan
+      if (authError) {
+        toast.error(`Error Autentikasi: ${authError}`);
+        // router.push(SIGN_IN_PATH); // AuthContext mungkin sudah redirect
+        return;
+      }
 
-        const userId = session.user.id;
-        console.log(`checkAuth: Fetching user data for ${userId}`);
-        const { data: userData, error: userFetchError } = await supabase
-          .from("users") // Pastikan nama tabel ini ('users') sesuai dengan database Anda
-          .select("role, id_bidang_fkey") // Ambil juga id_bidang_fkey
-          .eq("user_id", userId) // Pastikan nama kolom ini ('user_id') sesuai
-          .single();
+      // Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+      if (!user) {
+        // router.push(SIGN_IN_PATH); // AuthContext handles this
+        return;
+      }
 
-        console.log(`checkAuth: User data fetched for ${userId}. Data:`, userData, "Error:", userFetchError);
+      // Verifikasi role pengguna
+      if (user.role !== ALLOWED_ROLE) {
+        toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
+        router.push(DEFAULT_HOME_PATH); // HomeRedirect akan mengarahkan sesuai peran
+        return;
+      }
 
-        if (userFetchError) {
-          console.error("Error fetching user role:", userFetchError);
-          toast.error("Gagal memverifikasi peran pengguna: " + userFetchError.message);
-          setUserBidangId(null);
-          router.push(SIGN_IN_PATH);
-          return; // authLoading akan diatur di finally
-        }
-
-        if (!userData || !userData.role || userData.id_bidang_fkey === null) {
-          console.warn(`checkAuth: Data pengguna (peran/bidang) tidak lengkap untuk userId: ${userId}. Redirecting.`, userData);
-          toast.warn("Data pengguna (peran/bidang) tidak lengkap. Silakan login kembali.");
-          setUserBidangId(null);
-          router.push(SIGN_IN_PATH); // Arahkan ke sign-in jika data user tidak lengkap
-          return; // authLoading akan diatur di finally
-        }
-
-        setUserBidangId(userData.id_bidang_fkey); // Simpan id_bidang_fkey pengguna
-
-        // Cek peran setelah semua data pengguna ada
-        if (userData.role !== ALLOWED_ROLE) {
-          console.warn(`User role "${userData.role}" is not authorized for this page. Redirecting.`);
-          toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini. Peran Anda: " + userData.role);
-          setUserBidangId(null); // Set userBidangId ke null sebelum redirect
-          router.push(DEFAULT_HOME_PATH); // HomeRedirect akan mengarahkan sesuai peran
-          return; // authLoading akan diatur di finally
-        }
-
-      } catch (error: any) {
-        console.error("checkAuth: Unexpected error fetching user role:", error.message);
-        toast.error("Terjadi kesalahan saat verifikasi peran: " + error.message);
-        setUserBidangId(null);
-        router.push(SIGN_IN_PATH);
-        // Tidak perlu return di sini karena finally akan dijalankan
-      } finally {
-        setAuthLoading(false); // Pastikan authLoading selalu diatur ke false
+      // Pastikan data bidang pengguna tersedia
+      if (!user.id_bidang_fkey) {
+         toast.warn("Data bidang pengguna tidak lengkap. Silakan login kembali atau hubungi admin.");
+         // router.push(SIGN_IN_PATH); // AuthContext might handle redirect
+         return;
       }
     };
     checkAuth();
-  }, [router, supabase, SIGN_IN_PATH, DEFAULT_HOME_PATH, ALLOWED_ROLE]);
+  }, [user, isAuthLoading, authError, router, ALLOWED_ROLE, DEFAULT_HOME_PATH]);
 
   useEffect(() => {
-    if (userBidangId !== null) { // Hanya panggil fetchData jika userBidangId sudah terisi
-      console.log(`useEffect (fetchData trigger): userBidangId is ${userBidangId}, calling fetchData.`);
-      fetchData(); // fetchData akan menggunakan sortConfig dari state
+    if (user?.id_bidang_fkey && !isAuthLoading) { // Hanya panggil fetchData jika userBidangId sudah terisi dan auth tidak loading
+      console.log(`useEffect (fetchData trigger): user.id_bidang_fkey is ${user.id_bidang_fkey}, calling fetchData.`);
+      fetchData();
     } else {
-      console.log("useEffect (fetchData trigger): userBidangId is null, skipping fetchData.");
+      console.log("useEffect (fetchData trigger): user.id_bidang_fkey is null or auth is loading, skipping fetchData.");
     }
-  }, [userBidangId, currentPage, fetchData, sortConfig, statusFilterAktif]); 
+  }, [user, isAuthLoading, currentPage, fetchData, sortConfig, statusFilterAktif]); // Ganti userBidangId dengan user dan isAuthLoading
   
   const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -245,7 +216,7 @@ export default function DaftarArsipAktif() {
 
   const handleDelete = useCallback(async (idArsip: string) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus arsip ini?")) return;
-    setLoading(true); // Tampilkan loading saat menghapus
+    setDataLoading(true); // Tampilkan loading saat menghapus
 
     const { error } = await supabase
       .from("arsip_aktif")
@@ -255,7 +226,7 @@ export default function DaftarArsipAktif() {
     if (error) {
       toast.error("Gagal menghapus arsip.");
       console.error("Error deleting data:", error.message || error);
-      setLoading(false);
+      setDataLoading(false);
     } else {
       toast.success("Arsip berhasil dihapus!");
       fetchData(); // Panggil ulang fetchData untuk refresh data dan paginasi
@@ -293,15 +264,14 @@ export default function DaftarArsipAktif() {
     }
     setIsExporting(true);
     try {
-      await exportArsipAktifToExcel({ data: filteredArsip, userBidangId });
+      await exportArsipAktifToExcel({ data: filteredArsip, userBidangId: user?.id_bidang_fkey });
       toast.success("Data arsip berhasil diekspor ke Excel!");
     } catch (error) {
       toast.error("Gagal mengekspor data ke Excel.");
       console.error("Export Excel error:", error);
     }
     setIsExporting(false);
-  }, [filteredArsip, userBidangId]);
-
+  }, [filteredArsip, user?.id_bidang_fkey]); // Pastikan userBidangId diganti dengan user?.id_bidang_fkey
   const getSortIndicator = (key: 'nomor_berkas' | 'kode_klasifikasi') => {
     if (sortConfig.key === key) {
       return sortConfig.direction === 'asc' ? '↑' : '↓';
@@ -310,7 +280,7 @@ export default function DaftarArsipAktif() {
   };
   
   const handleReorderAndSaveNomorBerkas = async () => {
-    if (!userBidangId) {
+    if (!user?.id_bidang_fkey) {
       toast.error("ID Bidang pengguna tidak ditemukan.");
       return;
     }
@@ -348,7 +318,7 @@ export default function DaftarArsipAktif() {
             no_folder
           )
         `)
-        .eq('lokasi_penyimpanan.id_bidang_fkey', userBidangId);
+        .eq('lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey);
   
       if (idsToExclude.length > 0) {
         const idsToExcludeString = `(${idsToExclude.join(',')})`;
@@ -412,8 +382,12 @@ export default function DaftarArsipAktif() {
     }
   };
   
-  if (authLoading || loading) {
+  if (isAuthLoading || dataLoading) {
     return <Loading />;
+  }
+
+  if (authError) {
+    return <div className="flex items-center justify-center h-full text-red-500">Error Autentikasi: {authError}</div>;
   }
 
   return (
@@ -428,7 +402,7 @@ export default function DaftarArsipAktif() {
           <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
             <button
               onClick={handleExportExcel}
-              disabled={isExporting || loading || authLoading || filteredArsip.length === 0}
+              disabled={isExporting || dataLoading || isAuthLoading || filteredArsip.length === 0}
               className="inline-flex items-center gap-2 px-4 py-2 border border-green-600 text-green-600 rounded-lg text-sm font-medium hover:bg-green-600 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FileSpreadsheet size={18} />
@@ -480,7 +454,7 @@ export default function DaftarArsipAktif() {
             </div>
             <button
                 onClick={handleReorderAndSaveNomorBerkas}
-                disabled={isReordering || loading || authLoading || arsipList.length === 0}
+                disabled={isReordering || dataLoading || isAuthLoading || arsipList.length === 0}
                 className="px-4 py-2.5 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 text-sm font-medium"
             >
                 {isReordering ? "Menyimpan..." : `Tata Ulang`}
@@ -587,7 +561,7 @@ export default function DaftarArsipAktif() {
           <div className="flex justify-between items-center p-4 border-t border-border/50 mt-auto">
             <button
               onClick={handlePrevPage}
-              disabled={currentPage === 1 || loading}
+              disabled={currentPage === 1 || dataLoading}
               className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
             >
               <ChevronLeft size={16} />
@@ -598,7 +572,7 @@ export default function DaftarArsipAktif() {
             </span>
             <button
               onClick={handleNextPage}
-              disabled={currentPage === totalPages || loading}
+              disabled={currentPage === totalPages || dataLoading}
               className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
             >
               Selanjutnya

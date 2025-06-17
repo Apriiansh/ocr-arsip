@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { sendUserNotification } from "@/utils/notificationService";
+import { useAuth } from "@/context/AuthContext"; 
 import { LoadingSkeleton } from "./components/VerifikasiArsipSkeleton";
 import { ChevronLeft, ChevronRight, Search, CheckCircle2, XCircle, FileCheck, Box, Filter } from "lucide-react";
 import Loading from "../loading";
@@ -38,11 +39,9 @@ export default function VerifikasiArsip() {
     const supabase = createClient();
     const [arsipList, setArsipList] = useState<Arsip[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
-    const [dataLoading, setDataLoading] = useState(true);
     const [selectedArsipIds, setSelectedArsipIds] = useState<string[]>([]);
-    const [authLoading, setAuthLoading] = useState(true);
-    // Hapus userNamaBidang, karena tidak digunakan
-    const [userIdBidang, setUserIdBidang] = useState<number | null>(null);
+    const { user, isLoading: isAuthLoading, error: authError } = useAuth(); 
+    const [dataLoading, setDataLoading] = useState(true); 
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
     const [statusFilter, setStatusFilter] = useState("Menunggu");
@@ -51,8 +50,6 @@ export default function VerifikasiArsip() {
 
     const ITEMS_PER_PAGE = 10;
     const ALLOWED_ROLE = "Kepala_Bidang";
-    const SIGN_IN_PATH = "/sign-in";
-    const DEFAULT_HOME_PATH = "/";
 
     const fetchData = useCallback(async (idBidangKepala: number, page: number) => {
         if (!idBidangKepala) {
@@ -137,94 +134,45 @@ export default function VerifikasiArsip() {
     }, [supabase, ITEMS_PER_PAGE, statusFilter]);
 
     useEffect(() => {
-        const checkAuthAndFetchInitialData = async () => {
-            setAuthLoading(true);
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Jika AuthContext masih loading, tunggu
+        if (isAuthLoading) return;
 
-            if (sessionError || !session) {
-                router.push(SIGN_IN_PATH);
-                setAuthLoading(false);
-                return;
-            }
-
-            const userId = session.user.id;
-            let userRole: string | null = null;
-            let fetchedUserData: {
-                role: string;
-                id_bidang_fkey: number;
-                daftar_bidang: { nama_bidang: string } | null;
-            } | null = null;
-
-            try {
-                const { data: userData, error: userFetchError } = await supabase
-                    .from("users")
-                    .select("role, id_bidang_fkey, daftar_bidang:id_bidang_fkey ( nama_bidang )")
-                    .eq("user_id", userId)
-                    .single();
-
-                if (userFetchError || !userData) {
-                    toast.error("Gagal memverifikasi data pengguna.");
-                    router.push(SIGN_IN_PATH);
-                    setAuthLoading(false);
-                    return;
-                }
-
-                if (!userData.role ||
-                    userData.id_bidang_fkey === null ||
-                    !userData.daftar_bidang ||
-                    typeof userData.daftar_bidang !== 'object' ||
-                    Array.isArray(userData.daftar_bidang) ||
-                    typeof (userData.daftar_bidang as { nama_bidang?: string }).nama_bidang !== 'string'
-                ) {
-                    toast.warn("Informasi peran atau bidang pengguna tidak lengkap.");
-                    router.push(SIGN_IN_PATH);
-                    setAuthLoading(false);
-                    return;
-                }
-                userRole = userData.role;
-                fetchedUserData = userData as unknown as { role: string; id_bidang_fkey: number; daftar_bidang: { nama_bidang: string; } | null; };
-
-            } catch {
-                toast.error("Terjadi kesalahan saat verifikasi peran.");
-                router.push(SIGN_IN_PATH);
-                setAuthLoading(false);
-                return;
-            }
-
-            if (userRole !== ALLOWED_ROLE) {
-                toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
-                router.push(DEFAULT_HOME_PATH);
-                setAuthLoading(false);
-                return;
-            }
-
-            if (fetchedUserData && fetchedUserData.daftar_bidang && typeof fetchedUserData.daftar_bidang.nama_bidang === 'string') {
-                // Hapus setUserNamaBidang (tidak digunakan)
-                setUserIdBidang(fetchedUserData.id_bidang_fkey);
-            } else {
-                toast.error("Gagal memproses data bidang pengguna setelah verifikasi.");
-                router.push(SIGN_IN_PATH);
-            }
-            setAuthLoading(false);
-        };
-        checkAuthAndFetchInitialData();
-    }, [supabase, router, SIGN_IN_PATH, DEFAULT_HOME_PATH, ALLOWED_ROLE]);
-
-    useEffect(() => {
-        if (userIdBidang && !authLoading) {
-            fetchData(userIdBidang, currentPage);
-        } else if (!authLoading && !userIdBidang) {
-            setDataLoading(false);
-            setArsipList([]);
-            setTotalPages(0);
+        // Jika ada error dari AuthContext, tampilkan dan jangan lanjutkan
+        if (authError) {
+            toast.error(`Error Autentikasi: ${authError}`);
+            // router.push("/sign-in"); // AuthContext mungkin sudah redirect
+            return;
         }
-    }, [userIdBidang, currentPage, fetchData, authLoading, statusFilter]);
+
+        // Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+        if (!user) {
+            // router.push("/sign-in"); // AuthContext handles this
+            return;
+        }
+
+        // Verifikasi role pengguna
+        if (user.role !== ALLOWED_ROLE) {
+            toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
+            // router.push(DEFAULT_HOME_PATH); // AuthContext/HomeRedirect handles this
+            return;
+        }
+
+        // Pastikan data bidang pengguna tersedia
+        if (!user.id_bidang_fkey) {
+            toast.warn("Data bidang pengguna tidak lengkap. Silakan login kembali atau hubungi admin.");
+            // router.push("/sign-in"); // AuthContext mungkin sudah redirect
+            return;
+        }
+
+        // Jika semua pengecekan lolos, panggil fetchData
+        fetchData(user.id_bidang_fkey, currentPage);
+
+    }, [user, isAuthLoading, authError, router, ALLOWED_ROLE, fetchData, currentPage]); // Tambahkan user, isAuthLoading, authError, fetchData, currentPage
 
     const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
     }, []);
 
-    // Fix: Remove unused lowerSearchTerm
     const filteredArsip = useMemo(() => {
         return arsipList.filter(arsip =>
             searchTerm === "" ||
@@ -233,11 +181,15 @@ export default function VerifikasiArsip() {
         );
     }, [arsipList, searchTerm]);
 
-    // Fix: Don't define but not use error in catch
     const updateStatus = async (status: string, arsipIds?: string[]) => {
         const idsToProcess = arsipIds ?? selectedArsipIds;
         if (idsToProcess.length === 0) {
             toast.warn("Pilih arsip terlebih dahulu!");
+            return;
+        }
+
+        if (!user || !user.id_bidang_fkey) { 
+            toast.error("Sesi pengguna tidak valid atau ID bidang tidak ditemukan.");
             return;
         }
 
@@ -263,11 +215,10 @@ export default function VerifikasiArsip() {
         } else {
             toast.success(`Berhasil ${status.toLowerCase()} ${idsToProcess.length} arsip!`);
 
-            const { data: { user } } = await supabase.auth.getUser();
-            const currentUserId = user?.id;
+            const currentAuthUserId = user?.id; 
 
             for (const arsip of arsipToUpdate) {
-                if (arsip.user_id && arsip.user_id !== currentUserId) {
+                if (arsip.user_id && arsip.user_id !== currentAuthUserId) {
                     const notificationTitle = `Status Arsip Aktif: ${status}`;
                     const notificationMessage = `Arsip "${arsip.uraian_informasi}" (${arsip.kode_klasifikasi}) telah ${status.toLowerCase()} oleh Kepala Bidang.`;
                     const link = `/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`;
@@ -282,8 +233,8 @@ export default function VerifikasiArsip() {
                 }
             }
 
-            if (userIdBidang) {
-                fetchData(userIdBidang, currentPage);
+            if (user.id_bidang_fkey) { 
+                fetchData(user.id_bidang_fkey, currentPage);
             }
             setSelectedArsipIds([]);
         }
@@ -301,7 +252,28 @@ export default function VerifikasiArsip() {
         }
     };
 
-    if (authLoading) {
+    if (isAuthLoading) { // Gunakan isAuthLoading dari useAuth
+        return <Loading />;
+    }
+
+    // Tampilkan error dari AuthContext
+    if (authError) {
+        return (
+            <div className="w-full h-full p-6 flex items-center justify-center">
+                <div className="text-center text-red-500">
+                    <h2 className="text-xl font-semibold mb-2">Error Autentikasi</h2>
+                    <p>{authError}</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Jika user tidak ada setelah loading auth selesai (seharusnya sudah di-redirect oleh AuthContext)
+    // atau jika role tidak sesuai (juga seharusnya sudah di-redirect)
+    if (!user || user.role !== ALLOWED_ROLE) {
+        // AuthContext seharusnya sudah menangani redirect,
+        // tapi ini sebagai fallback atau jika ada kondisi race.
+        // Bisa juga menampilkan pesan "Unauthorized" daripada loading.
         return <Loading />;
     }
 
@@ -352,7 +324,10 @@ export default function VerifikasiArsip() {
                                     <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
                                     <select
                                         value={statusFilter}
-                                        onChange={(e) => setStatusFilter(e.target.value)}
+                                        onChange={(e) => {
+                                            setStatusFilter(e.target.value);
+                                            setCurrentPage(1); // Reset ke halaman pertama saat filter berubah
+                                        }}
                                         className="w-full pl-10 pr-4 py-2.5 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none text-sm transition-colors duration-300"
                                     >
                                         <option value="all">Semua Status</option>
@@ -482,3 +457,4 @@ export default function VerifikasiArsip() {
         </div>
     );
 }
+            

@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { Eye, PlayCircle, CheckCircle, Clock, ListFilter, Search, Trash2, FileText } from "lucide-react"; // Added FileText
 import Link from "next/link";
 import { SIGN_IN_PATH, DEFAULT_HOME_PATH, ALLOWED_ROLES } from "../utils"; // Sesuaikan path jika perlu
+import { useAuth } from "@/context/AuthContext";
 
 interface PemindahanProcess {
   id: string;
@@ -95,50 +96,18 @@ const RiwayatLoadingSkeleton = () => {
 export default function RiwayatPemindahanPage() {
   const supabase = createClient();
   const router = useRouter();
+  const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
   const [processes, setProcesses] = useState<PemindahanProcess[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [dataLoading, setDataLoading] = useState(true); // Ganti nama state loading data
   const [filterStatus, setFilterStatus] = useState<"all" | "completed" | "pending">("all");
   const [searchTerm, setSearchTerm] = useState("");
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      setAuthLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push(SIGN_IN_PATH);
-        return;
-      }
-      setUserId(session.user.id);
-
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("role")
-        .eq("user_id", session.user.id)
-        .single();
-
-      if (userError || !userData) {
-        toast.error("Gagal memuat data pengguna.");
-        router.push(SIGN_IN_PATH);
-        return;
-      }
-      setUserRole(userData.role);
-
-      if (!ALLOWED_ROLES.includes(userData.role)) {
-        toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
-        router.push(DEFAULT_HOME_PATH);
-        return;
-      }
-      setAuthLoading(false);
-    };
-    checkAuth();
-  }, [router, supabase]);
-
   const fetchProcesses = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
+    if (!user?.id) { // Gunakan user.id dari context
+      setDataLoading(false);
+      return;
+    }
+    setDataLoading(true);
 
     let query = supabase
       .from("pemindahan_process")
@@ -157,8 +126,8 @@ export default function RiwayatPemindahanPage() {
       .order("updated_at", { ascending: false });
 
     // Filter berdasarkan peran: Admin/Pimpinan bisa lihat semua, user biasa hanya lihat miliknya
-    if (userRole !== "Admin" && userRole !== "Pimpinan") {
-      query = query.eq("user_id", userId);
+    if (user.role !== "Admin" && user.role !== "Kepala_Dinas" && user.role !== "Sekretaris") { // Sesuaikan dengan role pimpinan Anda
+      query = query.eq("user_id", user.id);
     }
 
     if (filterStatus === "completed") {
@@ -199,19 +168,45 @@ export default function RiwayatPemindahanPage() {
       }) || [];
       setProcesses(processedData);
     }
-    setLoading(false);
-  }, [userId, supabase, filterStatus, searchTerm, userRole]);
+    setDataLoading(false);
+  }, [user, supabase, filterStatus, searchTerm]); // Ganti userId dan userRole dengan user
 
   useEffect(() => {
-    if (!authLoading) {
+    const fetchDataBasedOnAuth = async () => {
+      // Jika AuthContext masih loading, tunggu
+      if (isAuthLoading) return;
+
+      // Jika ada error dari AuthContext, tampilkan dan jangan lanjutkan
+      if (authError) {
+        toast.error(`Error Autentikasi: ${authError}`);
+        setDataLoading(false);
+        return;
+      }
+
+      // Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+      if (!user) {
+        setDataLoading(false);
+        return;
+      }
+
+      // Verifikasi role pengguna (ALLOWED_ROLES dari utils)
+      if (!ALLOWED_ROLES.includes(user.role || "")) {
+        toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
+        router.push(DEFAULT_HOME_PATH); // atau halaman default yang sesuai
+        setDataLoading(false);
+        return;
+      }
+
+      // Jika semua pengecekan lolos, panggil fetchProcesses
       fetchProcesses();
-    }
-  }, [authLoading, fetchProcesses]);
+    };
+    fetchDataBasedOnAuth();
+  }, [user, isAuthLoading, authError, router, fetchProcesses, DEFAULT_HOME_PATH]);
 
   // Tambahkan fungsi untuk menghapus proses pemindahan
   const handleDeleteProcess = async (processId: string) => {
     if (!window.confirm("Yakin ingin menghapus proses pemindahan ini? Data yang belum selesai akan hilang.")) return;
-    setLoading(true);
+    setDataLoading(true);
     const { error } = await supabase
       .from("pemindahan_process")
       .delete()
@@ -224,13 +219,16 @@ export default function RiwayatPemindahanPage() {
       toast.success("Proses berhasil dihapus.");
       setProcesses(prev => prev.filter(p => p.id !== processId));
     }
-    setLoading(false);
+    setDataLoading(false);
   };
 
-  if (authLoading || loading) {
-    return (
-      <RiwayatLoadingSkeleton />
-    );
+  if (isAuthLoading || dataLoading) {
+    return <RiwayatLoadingSkeleton />;
+  }
+
+  // Tampilkan error dari AuthContext
+  if (authError) {
+    return <div className="flex items-center justify-center h-full text-red-500">Error Autentikasi: {authError}</div>;
   }
 
   return (

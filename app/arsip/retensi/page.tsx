@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Search, Eye, FileText, Filter, AlertTriangle, CalendarClock } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import { useAuth } from "@/context/AuthContext"; // Impor useAuth
 import { toast } from "react-toastify";
 import { differenceInDays, parse } from "date-fns";
 import Loading from "./loading";
@@ -34,16 +35,14 @@ export default function RetensiArsipPage() {
     const supabase = createClient();
     const router = useRouter();
 
-    const [allArsip, setAllArsip] = useState<ArsipRetensiRow[]>([]);
+    const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
+    const [allArsip, setAllArsip] = useState<ArsipRetensiRow[]>([]); // Data arsip setelah fetch
     const [searchTerm, setSearchTerm] = useState("");
-    const [loading, setLoading] = useState(true);
-    const [authLoading, setAuthLoading] = useState(true);
+    const [dataLoading, setDataLoading] = useState(true); // Ganti nama state loading data
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(10);
-    const [userBidangId, setUserBidangId] = useState<number | null>(null);
     const [selectedFilter, setSelectedFilter] = useState<string>("all");
 
-    const ALLOWED_ROLE = "Pegawai";
     const SIGN_IN_PATH = "/sign-in";
     const DEFAULT_HOME_PATH = "/";
 
@@ -76,11 +75,11 @@ export default function RetensiArsipPage() {
     };
 
     const fetchData = useCallback(async () => {
-        if (userBidangId === null) {
-            setLoading(false);
+        if (user?.id_bidang_fkey === null || user?.id_bidang_fkey === undefined) {
+            setDataLoading(false);
             return;
         }
-        setLoading(true);
+        setDataLoading(true);
 
         try {
             const { data: pemindahanLinks, error: pemindahanError } = await supabase
@@ -101,7 +100,7 @@ export default function RetensiArsipPage() {
                     kurun_waktu,
                     lokasi_penyimpanan!inner(id_bidang_fkey)
                 `)
-                .eq('lokasi_penyimpanan.id_bidang_fkey', userBidangId)
+                .eq('lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey)
                 .eq('status_persetujuan', 'Disetujui'); // Hanya arsip yang disetujui
 
             if (idsToExclude.length > 0) {
@@ -123,47 +122,31 @@ export default function RetensiArsipPage() {
             toast.error("Gagal memuat data arsip retensi: " + e.message);
             setAllArsip([]);
         }
-        setLoading(false);
-    }, [supabase, userBidangId]);
+        setDataLoading(false);
+    }, [supabase, user]); 
 
     useEffect(() => {
-        const checkAuth = async () => {
-            setAuthLoading(true);
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                router.push(SIGN_IN_PATH);
-                setAuthLoading(false);
-                return;
-            }
-            const { data: userData, error: userFetchError } = await supabase
-                .from("users")
-                .select("role, id_bidang_fkey")
-                .eq("user_id", session.user.id)
-                .single();
+        if (isAuthLoading) return;
 
-            if (userFetchError || !userData || !userData.role || userData.id_bidang_fkey === null) {
-                toast.warn("Data pengguna tidak lengkap atau sesi tidak valid.");
-                router.push(SIGN_IN_PATH);
-                setAuthLoading(false);
-                return;
-            }
-            if (userData.role !== ALLOWED_ROLE) {
+        if (authError) {
+            toast.error(`Error Autentikasi: ${authError}`);
+            return;
+        }
+
+        if (!user) {
+            return;
+        }
+
+        const ALLOWED_ROLE = "Pegawai"; 
+        if (user.role !== ALLOWED_ROLE || !user.id_bidang_fkey) {
                 toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
                 router.push(DEFAULT_HOME_PATH);
-                setAuthLoading(false);
                 return;
             }
-            setUserBidangId(userData.id_bidang_fkey);
-            setAuthLoading(false);
-        };
-        checkAuth();
-    }, [router, supabase]);
 
-    useEffect(() => {
-        if (!authLoading && userBidangId !== null) {
-            fetchData();
-        }
-    }, [authLoading, userBidangId, fetchData]);
+        fetchData();
+
+    }, [user, isAuthLoading, authError, router, fetchData, DEFAULT_HOME_PATH]); // Tambahkan user, isAuthLoading, authError, fetchData
 
     const filteredAndSortedArsip = useMemo(() => {
         let filtered = allArsip.filter(arsip =>
@@ -181,12 +164,9 @@ export default function RetensiArsipPage() {
             }
         }
 
-        // If a specific filter is active (not "all"), then sort by selisih_hari
         if (selectedFilter !== "all" && filterOption) {
-             // Sort by selisih_hari (ascending) for time-based filters
             return filtered.sort((a, b) => (a.selisih_hari as number) - (b.selisih_hari as number));
         } else {
-            // Default sort: kode_klasifikasi (A-Z), then nomor_berkas (ascending)
             return filtered.sort((a, b) => {
                 const kodeCompare = (a.kode_klasifikasi || "").localeCompare(b.kode_klasifikasi || "");
                 return kodeCompare !== 0 ? kodeCompare : a.nomor_berkas - b.nomor_berkas;
@@ -226,7 +206,23 @@ export default function RetensiArsipPage() {
         return { text: `${selisihHari} hari lagi`, color: "text-green-600" };
     };
 
-    if (authLoading || (loading && allArsip.length === 0)) {
+    if (isAuthLoading || dataLoading) {
+        return <Loading />;
+    }
+
+    if (authError) {
+        return (
+            <div className="w-full h-full p-6 flex items-center justify-center">
+                <div className="text-center text-red-500">
+                    <h2 className="text-xl font-semibold mb-2">Error Autentikasi</h2>
+                    <p>{authError}</p>
+                </div>
+            </div>
+        );
+    }
+
+    const ALLOWED_ROLE = "Pegawai"; 
+    if (!user || user.role !== ALLOWED_ROLE || !user.id_bidang_fkey) {
         return <Loading />; 
     }
 
@@ -273,8 +269,8 @@ export default function RetensiArsipPage() {
                     </div>
 
                     <div className="p-6 flex-grow flex flex-col overflow-auto">
-                        {loading && paginatedArsip.length === 0 ? (
-                             <div className="flex-grow flex justify-center items-center">
+                        {dataLoading && paginatedArsip.length === 0 ? (
+                                <div className="flex-grow flex justify-center items-center">
                                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
                              </div>
                         ) : paginatedArsip.length > 0 ? (
@@ -330,7 +326,7 @@ export default function RetensiArsipPage() {
                         <div className="flex justify-between items-center p-4 border-t border-border/50 mt-auto">
                             <button
                                 onClick={handlePrevPage}
-                                disabled={currentPage === 1 || loading}
+                                disabled={currentPage === 1 || dataLoading} // Gunakan dataLoading
                                 className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
                             >
                                 <ChevronLeft size={16} />
@@ -341,7 +337,7 @@ export default function RetensiArsipPage() {
                             </span>
                             <button
                                 onClick={handleNextPage}
-                                disabled={currentPage === totalPages || loading}
+                                disabled={currentPage === totalPages || dataLoading} 
                                 className="px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
                             >
                                 Selanjutnya

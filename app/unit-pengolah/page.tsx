@@ -7,6 +7,7 @@ import { FaFolder, FaCheckCircle, FaTasks, FaHourglassHalf, FaExternalLinkAlt, F
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
+import { useAuth } from "@/context/AuthContext"; // Impor useAuth
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import Loading from "./loading";
 
@@ -236,10 +237,9 @@ function ArchivesLoadingSkeleton() {
 function DashboardContent() {
     const supabase = createClient();
     const router = useRouter();
-
-    const [authLoading, setAuthLoading] = useState(true);
+    const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
     const [dataLoading, setDataLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [dashboardError, setDashboardError] = useState<string | null>(null); // Ganti nama state error data
 
     const [stats, setStats] = useState<Stats>({
         totalArsip: 0,
@@ -253,44 +253,12 @@ function DashboardContent() {
     const [recentArchives, setRecentArchives] = useState<ArsipData[]>([]);
 
     const ALLOWED_ROLE = "Kepala_Bidang";
-    const SIGN_IN_PATH = "/sign-in";
-    const DEFAULT_HOME_PATH = "/";
-
-    const checkAuth = useCallback(async () => {
-        try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) throw new Error("No active session");
-
-            // Remove name variable (lint: defined but never used)
-            const { data: userData, error: userError } = await supabase
-                .from("users")
-                .select("role, id_bidang_fkey")
-                .eq("user_id", session.user.id)
-                .single();
-
-            if (userError || !userData?.role || userData.id_bidang_fkey === null) {
-                throw new Error("Invalid user data");
-            }
-
-            if (userData.role !== ALLOWED_ROLE) {
-                throw new Error("Unauthorized role");
-            }
-
-            // Remove userBidang variable (lint: assigned but never used)
-            return userData.id_bidang_fkey;
-
-        } catch (authError) {
-            const message = authError instanceof Error ? authError.message : "Authentication error";
-            console.error("Auth error:", message);
-            router.push(message === "Unauthorized role" ? DEFAULT_HOME_PATH : SIGN_IN_PATH);
-            return null;
-        }
-    }, [router, supabase]);
+    // Hapus SIGN_IN_PATH dan DEFAULT_HOME_PATH karena AuthContext yang menangani redirect
 
     const fetchDashboardData = useCallback(async (bidangId: number) => {
         try {
             setDataLoading(true);
-            setError(null);
+            setDashboardError(null);
 
             const { data: lokasiDiBidang, error: lokasiError } = await supabase
                 .from("lokasi_penyimpanan")
@@ -342,37 +310,66 @@ function DashboardContent() {
         } catch (fetchError) {
             const message = fetchError instanceof Error ? fetchError.message : "Failed to fetch dashboard data";
             console.error("Dashboard error:", message);
-            setError(message);
+            setDashboardError(message);
             toast.error("Gagal memuat data dashboard.");
         } finally {
             setDataLoading(false);
         }
     }, [supabase]);
 
+    // Efek untuk menangani status autentikasi dan memuat data dashboard
     useEffect(() => {
-        const initializeDashboard = async () => {
-            setAuthLoading(true);
-            const bidangId = await checkAuth();
-            if (bidangId) {
-                await fetchDashboardData(bidangId);
-            }
-            setAuthLoading(false);
-        };
-        initializeDashboard();
-    }, [checkAuth, fetchDashboardData]);
+        // Jika AuthContext masih loading, tunggu
+        if (isAuthLoading) return;
 
-    if (authLoading || (dataLoading && !stats.totalArsip)) {
+        // Jika ada error dari AuthContext, tampilkan dan jangan lanjutkan
+        if (authError) {
+            // setDashboardError(authError); // Bisa set error lokal jika ingin menampilkannya di UI ini
+            // router.push("/sign-in"); // AuthContext mungkin sudah redirect
+            return;
+        }
+
+        // Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+        if (!user) {
+            // router.push("/sign-in"); // AuthContext handles this
+            return;
+        }
+
+        // Verifikasi role pengguna dan kelengkapan data bidang
+        if (user.role !== ALLOWED_ROLE || !user.id_bidang_fkey) {
+            toast.warn("Anda tidak memiliki izin atau data bidang tidak lengkap.");
+            // router.push(DEFAULT_HOME_PATH); // AuthContext/HomeRedirect handles this
+            return;
+        }
+
+        // Jika user terautentikasi dan memiliki role serta bidang yang valid, fetch data dashboard
+        fetchDashboardData(user.id_bidang_fkey);
+    }, [user, isAuthLoading, authError, fetchDashboardData, router]); // Tambahkan user, isAuthLoading, authError sebagai dependency
+
+    if (isAuthLoading || (dataLoading && !stats.totalArsip)) { // Gunakan isAuthLoading
         return <Loading />;
     }
 
-    if (error) {
+    // Tampilkan error dari AuthContext atau error data dashboard
+    if (authError) {
+        return (
+            <div className="bg-background flex flex-col items-center justify-center p-6 w-full h-full">
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold text-foreground mb-4">Autentikasi Gagal</h2>
+                    <p className="text-muted-foreground mb-6">{authError}</p>
+                    {/* Tombol untuk kembali ke sign-in mungkin lebih cocok di sini */}
+                </div>
+            </div>
+        );
+    }
+    if (dashboardError) {
         return (
             <div className="bg-background flex flex-col items-center justify-center p-6 w-full h-full">
                 <div className="text-center">
                     <h2 className="text-2xl font-bold text-foreground mb-4">Terjadi Kesalahan</h2>
-                    <p className="text-muted-foreground mb-6">{error}</p>
+                    <p className="text-muted-foreground mb-6">{dashboardError}</p>
                     <button
-                        onClick={() => fetchDashboardData}
+                        onClick={() => user?.id_bidang_fkey && fetchDashboardData(user.id_bidang_fkey)} // Perbaiki onClick dan pastikan bidangId ada
                         className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
                     >
                         Coba Lagi
@@ -380,6 +377,11 @@ function DashboardContent() {
                 </div>
             </div>
         );
+    }
+    // Jika user tidak ada setelah loading auth selesai (seharusnya sudah di-redirect oleh AuthContext)
+    if (!user) {
+        // Bisa return null atau komponen "Unauthorized" jika AuthContext tidak redirect
+        return <Loading />; // Atau null, karena redirect seharusnya sudah terjadi
     }
 
     return (

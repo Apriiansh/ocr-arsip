@@ -9,6 +9,7 @@ import { sendDepartmentHeadNotification } from "@/utils/notificationService";
 import { usePdfUpload } from "./usePdfUpload";
 import { useArchiveLocation } from "./useArchiveLocation";
 import { useFormDraft } from "./useFormDraft";
+import { useAuth } from "@/context/AuthContext";
 import { findKlasifikasiData } from "@/utils/findKlasifikasiData";
 
 interface FormDataState {
@@ -55,9 +56,8 @@ export function useArsipAktifForm() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("editId");
 
-  const [authLoading, setAuthLoading] = useState(true);
+  const { user, isLoading: isAuthLoading, error: authError } = useAuth();
   const ALLOWED_ROLE = "Pegawai";
-  const SIGN_IN_PATH = "/sign-in";
   const DEFAULT_HOME_PATH = "/";
 
   const [formData, setFormData] = useState<FormDataState>({
@@ -91,9 +91,6 @@ export function useArsipAktifForm() {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [nomorBerkas, setNomorBerkas] = useState<number>(0);
-  const [userNamaBidang, setUserNamaBidang] = useState<string | null>(null);
-  const [userIdBidang, setUserIdBidang] = useState<number | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [selectedKodeDasar, setSelectedKodeDasar] = useState("");
   const [kodeTambahan, setKodeTambahan] = useState("");
@@ -102,16 +99,16 @@ export function useArsipAktifForm() {
 
   // Location calculation (custom hook)
   const calculatedLocation = useArchiveLocation({
-    userNamaBidang,
+    userNamaBidang: user?.daftar_bidang?.nama_bidang || null,
     kodeKlasifikasi: kodeKlasifikasiMode === "otomatis"
       ? selectedKodeDasar
       : formData.kode_klasifikasi.split("/")[0].trim() || formData.kode_klasifikasi.trim(),
-    userIdBidang,
+    userIdBidang: user?.id_bidang_fkey || null,
     editId,
   });
 
   // Draft management (custom hook)
-  useFormDraft<FormDataState>(formData, currentUserId, editId, setFormData);
+  useFormDraft<FormDataState>(formData, user?.id || null, editId, setFormData);
 
   const resetFormForNewEntry = () => {
     setFormData({
@@ -159,7 +156,6 @@ export function useArsipAktifForm() {
 
   // Load archive data for edit
   const loadArchiveDataForEdit = useCallback(async (id: string) => {
-    setAuthLoading(true);
     const { data, error } = await supabase
       .from("arsip_aktif")
       .select(`*, lokasi_penyimpanan:id_lokasi_fkey(*)`)
@@ -169,7 +165,6 @@ export function useArsipAktifForm() {
     if (error || !data) {
       toast.error("Gagal memuat data arsip untuk diedit.");
       router.push("/arsip/arsip-aktif/daftar-aktif");
-      setAuthLoading(false);
       return;
     }
 
@@ -199,75 +194,47 @@ export function useArsipAktifForm() {
     setSelectedKodeDasar(kodeDasar || "");
     setKodeTambahan(kodeTambahanArray.join("/") || "");
     if (data.file_url) setPdfPreviewUrl(data.file_url);
-
-    setAuthLoading(false);
   }, [supabase, router, setPdfPreviewUrl]);
 
-  // Authentication & Klasifikasi
+  // Effect to handle authentication status and fetch initial data (klasifikasi, edit data)
   useEffect(() => {
-    const checkAuthAndFetchInitialData = async () => {
-      setAuthLoading(true);
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const fetchData = async () => {
+      // Jika AuthContext masih loading, tunggu
+      if (isAuthLoading) return;
 
-      if (sessionError || !session) {
-        router.push(SIGN_IN_PATH);
-        setAuthLoading(false);
+      // Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+      if (!user) {
+        // router.push("/sign-in"); // AuthContext handles this
         return;
       }
 
-      const userId = session.user.id;
-      setCurrentUserId(userId);
-      let userRole: string | null = null;
-
-      try {
-        const { data: userData, error: userFetchError } = await supabase
-          .from("users")
-          .select("role, id_bidang_fkey, daftar_bidang:id_bidang_fkey ( nama_bidang )")
-          .eq("user_id", userId)
-          .single();
-
-        if (userFetchError) {
-          toast.error("Gagal memverifikasi data pengguna.");
-          router.push(SIGN_IN_PATH);
-          setAuthLoading(false);
-          return;
-        }
-
-        if (!userData || !userData.role || !userData.daftar_bidang || typeof userData.daftar_bidang !== 'object' || !('nama_bidang' in userData.daftar_bidang) || !userData.daftar_bidang.nama_bidang) {
-          toast.warn("Data pengguna (peran/bidang) tidak lengkap. Silakan login kembali.");
-          router.push(SIGN_IN_PATH);
-          setAuthLoading(false);
-          return;
-        }
-
-        userRole = userData.role;
-        setUserNamaBidang(userData.daftar_bidang.nama_bidang as string);
-        setUserIdBidang(userData.id_bidang_fkey as number);
-      } catch (error: any) {
-        toast.error("Terjadi kesalahan saat verifikasi peran.");
-        router.push(SIGN_IN_PATH);
-        setAuthLoading(false);
-        return;
-      }
-
-      if (userRole !== ALLOWED_ROLE) {
+      // Verifikasi role pengguna
+      if (user.role !== ALLOWED_ROLE) {
         toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
         router.push(DEFAULT_HOME_PATH);
-        setAuthLoading(false);
         return;
       }
 
+      // Pastikan data bidang pengguna tersedia
+      if (!user.id_bidang_fkey || !user.daftar_bidang?.nama_bidang) {
+         toast.warn("Data pengguna (peran/bidang) tidak lengkap. Silakan login kembali atau hubungi admin.");
+         // AuthContext might handle redirect, but explicit check is good
+         // router.push("/sign-in");
+         return;
+      }
+
+      // Ambil daftar klasifikasi
       try {
+        // Gunakan Promise.race untuk timeout
         const klasifikasiPromise = supabase
           .from("klasifikasi_arsip")
           .select("kode_klasifikasi, label");
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new TimeoutError(`Pengambilan daftar klasifikasi melebihi batas waktu ${SUPABASE_QUERY_TIMEOUT_MS}ms.`)), SUPABASE_QUERY_TIMEOUT_MS)
+          setTimeout(() => reject(new TimeoutError(`Pengambilan daftar klasifikasi melebihi batas waktu ${SUPABASE_QUERY_TIMEOUT_MS}ms.`)), SUPABASE_QUERY_TIMEOUT_MS) // Gunakan konstanta timeout
         );
 
         const result = await Promise.race([klasifikasiPromise, timeoutPromise]) as { data: KlasifikasiItem[] | null; error: any; };
-
         if (result.error) {
           toast.error(`Gagal memuat daftar klasifikasi: ${result.error.message}`);
           setKlasifikasiList([]);
@@ -278,21 +245,19 @@ export function useArsipAktifForm() {
         toast.error(`Gagal memuat daftar klasifikasi: ${(error as Error).message}`);
         setKlasifikasiList([]);
       }
+
+      // Jika dalam mode edit, muat data arsip
       if (editId) {
         await loadArchiveDataForEdit(editId);
       }
-
-      setAuthLoading(false);
     };
 
-    checkAuthAndFetchInitialData();
-    // eslint-disable-next-line
-  }, [router, supabase, editId, loadArchiveDataForEdit]);
-
+    fetchData();
+  }, [user, isAuthLoading, authError, router, supabase, editId, loadArchiveDataForEdit]);
   // Fetch nomor berkas otomatis
   useEffect(() => {
     const fetchNextNomorBerkasForBidang = async () => {
-      if (authLoading || !userIdBidang || editId) return;
+      if (isAuthLoading || !user?.id_bidang_fkey || editId) return;
       try {
         const { data: pemindahanLinks, error: pemindahanError } = await supabase
           .from('pemindahan_arsip_link')
@@ -307,7 +272,7 @@ export function useArsipAktifForm() {
         let query = supabase
           .from("arsip_aktif")
           .select("nomor_berkas, lokasi_penyimpanan!inner(id_bidang_fkey), id_arsip_aktif")
-          .eq("lokasi_penyimpanan.id_bidang_fkey", userIdBidang);
+          .eq("lokasi_penyimpanan.id_bidang_fkey", user.id_bidang_fkey);
 
         if (idsToExclude.length > 0) {
           const idsToExcludeString = `(${idsToExclude.join(',')})`;
@@ -333,8 +298,7 @@ export function useArsipAktifForm() {
       }
     };
     fetchNextNomorBerkasForBidang();
-    // eslint-disable-next-line
-  }, [authLoading, userIdBidang, supabase, editId]);
+  }, [isAuthLoading, user, supabase, editId]);
 
   // Sinkronkan nomorBerkas otomatis dari state ke formData.nomor_berkas jika entri baru
   useEffect(() => {
@@ -346,7 +310,7 @@ export function useArsipAktifForm() {
         return prev;
       });
     }
-  }, [nomorBerkas, editId]);
+  }, [nomorBerkas, editId, setFormData]);
 
   // Kode Klasifikasi Otomatis
   useEffect(() => {
@@ -360,7 +324,7 @@ export function useArsipAktifForm() {
         return prev;
       });
     }
-  }, [selectedKodeDasar, kodeTambahan, kodeKlasifikasiMode]);
+  }, [selectedKodeDasar, kodeTambahan, kodeKlasifikasiMode, setFormData]);
 
   // Otomatis: tanggal_mulai (1 Januari tahun berikutnya dari tanggal_penciptaan_mulai)
   useEffect(() => {
@@ -388,7 +352,7 @@ export function useArsipAktifForm() {
         return prev;
       });
     }
-  }, [formData.tanggal_penciptaan_mulai]);
+  }, [formData.tanggal_penciptaan_mulai, setFormData]);
 
   // Otomatis: tanggal_penciptaan_berakhir = tanggal_penciptaan_mulai (jika kosong)
   useEffect(() => {
@@ -400,7 +364,7 @@ export function useArsipAktifForm() {
         return prev;
       });
     }
-  }, [formData.tanggal_penciptaan_mulai]);
+  }, [formData.tanggal_penciptaan_mulai, setFormData]);
 
   // Otomatis: kurun_waktu (periode penciptaan arsip)
   const formatDate = (date: Date): string => {
@@ -428,7 +392,7 @@ export function useArsipAktifForm() {
         return prev;
       });
     }
-  }, [formData.tanggal_penciptaan_mulai, formData.tanggal_penciptaan_berakhir]);
+  }, [formData.tanggal_penciptaan_mulai, formData.tanggal_penciptaan_berakhir, setFormData]);
 
   // Otomatis: tanggal_berakhir & jangka_simpan
   useEffect(() => {
@@ -465,7 +429,7 @@ export function useArsipAktifForm() {
         return prev;
       });
     }
-  }, [formData.tanggal_mulai, formData.masa_retensi]);
+  }, [formData.tanggal_mulai, formData.masa_retensi, setFormData]);
 
   // Handler untuk input form
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -576,28 +540,16 @@ export function useArsipAktifForm() {
         }
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id;
-      if (!userId) {
-        toast.warning("Anda harus login untuk menyimpan arsip.");
+      // Gunakan user dari useAuth
+      if (!user || !user.id || !user.id_bidang_fkey || !user.daftar_bidang?.nama_bidang) {
+        toast.warning("Sesi pengguna tidak valid atau data bidang tidak lengkap untuk menyimpan arsip.");
         setSubmitting(false);
         return;
       }
 
-      const { data: currentUserData, error: currentUserError } = await supabase
-        .from("users")
-        .select("id_bidang_fkey")
-        .eq("user_id", userId)
-        .single();
-
-      if (currentUserError || !currentUserData || currentUserData.id_bidang_fkey === null) {
-        toast.error("Gagal mendapatkan informasi bidang pengguna untuk penyimpanan lokasi.");
-        setSubmitting(false);
-        return;
-      }
-
-      if (!userNamaBidang || !currentUserData.id_bidang_fkey) {
-        toast.error("Data bidang pengguna tidak tersedia untuk notifikasi.");
+      // user.id_bidang_fkey dan user.daftar_bidang.nama_bidang sudah divalidasi di useEffect awal
+      if (!user.id_bidang_fkey) { // Double check, seharusnya tidak terjadi jika useEffect awal sudah benar
+        toast.error("ID Bidang pengguna tidak tersedia untuk notifikasi.");
         setSubmitting(false);
         return;
       }
@@ -623,11 +575,11 @@ export function useArsipAktifForm() {
       }
 
       let idLokasiFkey: string | null = null;
-      if (calculatedLocation.no_filing_cabinet && calculatedLocation.no_laci && calculatedLocation.no_folder && currentUserData.id_bidang_fkey) {
+      if (calculatedLocation.no_filing_cabinet && calculatedLocation.no_laci && calculatedLocation.no_folder && user.id_bidang_fkey) {
         const { data: existingLokasi, error: lokErr } = await supabase
           .from("lokasi_penyimpanan")
           .select("id_lokasi")
-          .eq("id_bidang_fkey", currentUserData.id_bidang_fkey)
+          .eq("id_bidang_fkey", user.id_bidang_fkey)
           .eq("no_filing_cabinet", calculatedLocation.no_filing_cabinet)
           .eq("no_laci", calculatedLocation.no_laci)
           .eq("no_folder", calculatedLocation.no_folder)
@@ -644,7 +596,7 @@ export function useArsipAktifForm() {
         } else {
           const { data: newLokasi, error: insertLokErr } = await supabase
             .from("lokasi_penyimpanan")
-            .insert({ id_bidang_fkey: currentUserData.id_bidang_fkey, ...calculatedLocation })
+            .insert({ id_bidang_fkey: user.id_bidang_fkey, ...calculatedLocation })
             .select("id_lokasi")
             .single();
           if (insertLokErr || !newLokasi) {
@@ -678,7 +630,7 @@ export function useArsipAktifForm() {
         tingkat_perkembangan: formData.tingkat_perkembangan,
         media_simpan: formData.media_simpan,
         file_url: fileUrl,
-        user_id: userId,
+        user_id: user.id,
         nomor_berkas: finalNomorBerkas,
         id_lokasi_fkey: idLokasiFkey,
       };
@@ -696,7 +648,7 @@ export function useArsipAktifForm() {
           await supabase
             .from('draft_input_arsip')
             .delete()
-            .eq('user_id', currentUserId);
+            .eq('user_id', user.id);
           toast.success('Arsip berhasil diperbarui!');
           router.push(`/arsip/arsip-aktif/detail/${editId}`);
         }
@@ -712,7 +664,7 @@ export function useArsipAktifForm() {
           await supabase
             .from('draft_input_arsip')
             .delete()
-            .eq('user_id', currentUserId);
+            .eq('user_id', user.id);
           toast.success(`Arsip dengan nomor berkas ${arsipDataToSave.nomor_berkas} berhasil disimpan!`);
           setNomorBerkas(prev => prev + 1);
           resetFormForNewEntry();
@@ -721,7 +673,7 @@ export function useArsipAktifForm() {
             // Jalankan pengiriman notifikasi di latar belakang
             // agar tidak memblokir reset state submitting.
             sendDepartmentHeadNotification(
-                userIdBidang,
+                user.id_bidang_fkey, // Gunakan id_bidang_fkey dari user context
                 "Permintaan Persetujuan Arsip Baru",
                 `Arsip baru dengan kode klasifikasi ${kodeLengkap} telah ditambahkan dan menunggu persetujuan.`,
                 "/unit-pengolah/verifikasi-arsip",
@@ -821,7 +773,8 @@ export function useArsipAktifForm() {
     router,
     kodeKlasifikasiMode,
     setKodeKlasifikasiMode,
-    authLoading,
+    isAuthLoading,
+    authError,
     handleManualKodeKlasifikasiBlur,
   };
 }

@@ -14,6 +14,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
+import { useAuth } from "@/context/AuthContext"; // Impor useAuth
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import Loading from "./loading";
 
@@ -183,10 +184,9 @@ function ChartLoadingSkeleton() {
 function DashboardContent() {
     const supabase = createClient();
     const router = useRouter();
-
-    const [authLoading, setAuthLoading] = useState(true);
+    const { user, isLoading: isAuthLoading, error: authError } = useAuth(); // Gunakan useAuth
     const [dataLoading, setDataLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [dashboardError, setDashboardError] = useState<string | null>(null); // Ganti nama state error data
 
     const [stats, setStats] = useState<Stats>({
         totalArsipAktif: 0,
@@ -198,35 +198,11 @@ function DashboardContent() {
     const [bidangAktivitas, setBidangAktivitas] = useState<BidangAktivitas[]>([]);
 
     const ALLOWED_ROLE = "Kepala_Dinas";
-    const SIGN_IN_PATH = "/sign-in";
-    const DEFAULT_HOME_PATH = "/";
-
-    const checkAuth = useCallback(async () => {
-        try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) throw new Error("No active session");
-
-            const { data: userData, error: userError } = await supabase
-                .from("users")
-                .select("role")
-                .eq("user_id", session.user.id)
-                .single();
-
-            if (userError || !userData?.role) throw new Error("Invalid user data");
-            if (userData.role !== ALLOWED_ROLE) throw new Error("Unauthorized role");
-
-            return true;
-        } catch (authError) {
-            const message = authError instanceof Error ? authError.message : "Authentication error";
-            console.error("Auth error:", message);
-            router.push(message === "Unauthorized role" ? DEFAULT_HOME_PATH : SIGN_IN_PATH);
-            return false;
-        }
-    }, [router, supabase]);
+    // Hapus SIGN_IN_PATH dan DEFAULT_HOME_PATH karena AuthContext yang menangani redirect
 
     const fetchDashboardData = useCallback(async () => {
         setDataLoading(true);
-        setError(null);
+        setDashboardError(null);
         try {
             const { data: semuaArsipAktif, error: semuaArsipAktifError } = await supabase
                 .from("arsip_aktif")
@@ -298,35 +274,64 @@ function DashboardContent() {
         } catch (fetchError) {
             const message = fetchError instanceof Error ? fetchError.message : "Failed to fetch dashboard data";
             console.error("Dashboard error:", message);
-            setError(message);
+            setDashboardError(message);
             toast.error("Gagal memuat data dashboard.");
         } finally {
             setDataLoading(false);
         }
     }, [supabase]);
 
+    // Efek untuk menangani status autentikasi dan memuat data dashboard
     useEffect(() => {
-        const initializeDashboard = async () => {
-            setAuthLoading(true);
-            const isAuthorized = await checkAuth();
-            if (isAuthorized) {
-                await fetchDashboardData();
-            }
-            setAuthLoading(false);
-        };
-        initializeDashboard();
-    }, [checkAuth, fetchDashboardData]);
+        // Jika AuthContext masih loading, tunggu
+        if (isAuthLoading) return;
 
-    if (authLoading) {
+        // Jika ada error dari AuthContext, tampilkan dan jangan lanjutkan
+        if (authError) {
+            // setError(authError); // Bisa set error lokal jika ingin menampilkannya di UI ini
+            // router.push("/sign-in"); // AuthContext mungkin sudah redirect
+            return;
+        }
+
+        // Jika tidak ada user setelah AuthContext selesai loading, redirect (AuthContext seharusnya sudah melakukan ini)
+        if (!user) {
+            // router.push("/sign-in"); // AuthContext handles this
+            return;
+        }
+
+        // Verifikasi role pengguna
+        if (user.role !== ALLOWED_ROLE) {
+            toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
+            // router.push(DEFAULT_HOME_PATH); // AuthContext/HomeRedirect handles this
+            return;
+        }
+
+        // Jika user terautentikasi dan memiliki role yang diizinkan, fetch data dashboard
+        fetchDashboardData();
+    }, [user, isAuthLoading, authError, fetchDashboardData, router]); // Tambahkan user, isAuthLoading, authError sebagai dependency
+
+    if (isAuthLoading || dataLoading) { // Gunakan isAuthLoading dan dataLoading
         return <Loading />;
     }
 
-    if (error) {
+    // Tampilkan error dari AuthContext atau error data dashboard
+    if (authError) {
+        return (
+            <div className="bg-background flex flex-col items-center justify-center p-6 w-full h-full">
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold text-destructive mb-4">Autentikasi Gagal</h2>
+                    <p className="text-muted-foreground mb-6">{authError}</p>
+                    {/* Tombol untuk kembali ke sign-in mungkin lebih cocok di sini */}
+                </div>
+            </div>
+        );
+    }
+    if (dashboardError) {
         return (
             <div className="bg-background p-6 w-full h-full flex flex-col items-center justify-center">
                 <div className="text-center">
                     <h2 className="text-2xl font-bold text-destructive mb-4">Terjadi Kesalahan</h2>
-                    <p className="text-muted-foreground mb-6">{error}</p>
+                    <p className="text-muted-foreground mb-6">{dashboardError}</p>
                     <button
                         onClick={fetchDashboardData}
                         className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md"
@@ -336,6 +341,11 @@ function DashboardContent() {
                 </div>
             </div>
         );
+    }
+    // Jika user tidak ada setelah loading auth selesai (seharusnya sudah di-redirect oleh AuthContext)
+    if (!user) {
+        // Bisa return null atau komponen "Unauthorized" jika AuthContext tidak redirect
+        return <Loading />; // Atau null, karena redirect seharusnya sudah terjadi
     }
 
     return (

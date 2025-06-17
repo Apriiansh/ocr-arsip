@@ -7,6 +7,7 @@ import { FaFileAlt, FaFolder, FaClock, FaChartBar, FaExternalLinkAlt } from "rea
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
+import { useAuth } from "@/context/AuthContext"; 
 import { LoadingSkeleton } from "@/app/components/LoadingSkeleton";
 import Loading from "./loading";
 
@@ -258,11 +259,9 @@ function ArchivesLoadingSkeleton() {
 function DashboardContent() {
     const supabase = createClient();
     const router = useRouter();
-
-    const [authLoading, setAuthLoading] = useState(true);
+    const { user, isLoading: isAuthLoading, error: authError } = useAuth();
     const [dataLoading, setDataLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
+    const [dashboardError, setDashboardError] = useState<string | null>(null); 
     const [stats, setStats] = useState<Stats>({
         totalArsip: 0,
         arsipMenungguPersetujuan: 0,
@@ -278,67 +277,10 @@ function DashboardContent() {
     const [arsipMendekatiBerakhir, setArsipMendekatiBerakhir] = useState<ArsipInaktif[]>([]);
 
     const ALLOWED_ROLE = "Sekretaris";
-    const SIGN_IN_PATH = "/sign-in";
-    const DEFAULT_HOME_PATH = "/";
-
-    const checkAuth = useCallback(async () => {
-        try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) throw new Error("No active session");
-
-            const { data: userData, error: userError } = await supabase
-                .from("users")
-                .select("role")
-                .eq("user_id", session.user.id)
-                .single();
-
-            if (userError || !userData?.role) {
-                throw new Error("Invalid user data");
-            }
-
-            if (userData.role !== ALLOWED_ROLE) {
-                throw new Error("Unauthorized role");
-            }
-
-            return true;
-
-        } catch (authError) {
-            const message = authError instanceof Error ? authError.message : "Authentication error";
-            console.error("Auth error:", message);
-            router.push(message === "Unauthorized role" ? DEFAULT_HOME_PATH : SIGN_IN_PATH);
-            return false;
-        }
-    }, [router, supabase]);
 
     const fetchDashboardData = useCallback(async () => {
         try {
             setDataLoading(true);
-            setError(null);
-
-            const { count: total, error: totalError } = await supabase
-                .from("arsip_inaktif")
-                .select("id_arsip_inaktif", { count: "exact", head: true });
-
-            if (totalError) throw totalError;
-
-            const { count: menungguCount, error: menungguError } = await supabase
-                .from("arsip_inaktif")
-                .select("id_arsip_inaktif", { count: "exact", head: true })
-                .eq("status_persetujuan", "Menunggu");
-
-            if (menungguError) throw menungguError;
-
-            const thirtyDaysFromNow = new Date();
-            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-            const { data: deadlineData, count: deadlineCount, error: deadlineError } = await supabase
-                .from("arsip_inaktif")
-                .select("id_arsip_inaktif, kode_klasifikasi, created_at, tanggal_berakhir", { count: "exact" })
-                .lte("tanggal_berakhir", thirtyDaysFromNow.toISOString())
-                .gt("tanggal_berakhir", new Date().toISOString())
-                .order("tanggal_berakhir", { ascending: true });
-
-            if (deadlineError) throw deadlineError;
-
             const { data: statusData, error: statusError } = await supabase
                 .from("arsip_inaktif")
                 .select("status_persetujuan");
@@ -356,6 +298,30 @@ function DashboardContent() {
                     statusCounts[item.status_persetujuan as keyof typeof statusCounts]++;
                 }
             });
+            
+            const { count: total, error: totalError } = await supabase
+                .from("arsip_inaktif")
+                .select("id_arsip_inaktif", { count: "exact", head: true });
+
+            if (totalError) throw totalError;
+
+            const { count: menungguCount, error: menungguError } = await supabase
+                .from("arsip_inaktif")
+                .select("id_arsip_inaktif", { count: "exact", head: true })
+                .eq("status_persetujuan", "Menunggu");
+
+            if (menungguError) throw menungguError;
+
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+            const { data: deadlineData, count: deadlineCount, error: deadlineError } = await supabase
+                .from("arsip_inaktif")
+                .select("id_arsip_inaktif, kode_klasifikasi, created_at, tanggal_berakhir")
+                .lte("tanggal_berakhir", thirtyDaysFromNow.toISOString())
+                .gt("tanggal_berakhir", new Date().toISOString())
+                .order("tanggal_berakhir", { ascending: true });
+
+            if (deadlineError) throw deadlineError;
 
             const { data: arsipBaru, error: arsipError } = await supabase
                 .from("arsip_inaktif")
@@ -383,7 +349,7 @@ function DashboardContent() {
         } catch (fetchError) {
             const message = fetchError instanceof Error ? fetchError.message : "Failed to fetch dashboard data";
             console.error("Dashboard error:", message);
-            setError(message);
+            setDashboardError(message);
             toast.error("Gagal memuat data dashboard.");
         } finally {
             setDataLoading(false);
@@ -391,29 +357,47 @@ function DashboardContent() {
     }, [supabase]);
 
     useEffect(() => {
-        const initializeDashboard = async () => {
-            setAuthLoading(true);
-            const isAuthorized = await checkAuth();
-            if (isAuthorized) {
-                await fetchDashboardData();
-            }
-            setAuthLoading(false);
-        };
-        initializeDashboard();
-    }, [checkAuth, fetchDashboardData]);
+        if (isAuthLoading) return;
 
-    if (authLoading || (dataLoading && !stats.totalArsip)) {
+        if (authError) {
+            return;
+        }
+
+       if (!user) {
+            return;
+        }
+
+        // Verifikasi role pengguna
+        if (user.role !== ALLOWED_ROLE) {
+            toast.warn("Anda tidak memiliki izin untuk mengakses halaman ini.");
+            return;
+        }
+
+        fetchDashboardData();
+    }, [user, isAuthLoading, authError, fetchDashboardData, router]); 
+
+    if (isAuthLoading || (dataLoading && !stats.totalArsip)) { 
         return <Loading />;
     }
 
-    if (error) {
+    if (authError) {
+        return (
+            <div className="bg-background flex flex-col items-center justify-center p-6 w-full h-full">
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold text-foreground mb-4">Autentikasi Gagal</h2>
+                    <p className="text-muted-foreground mb-6">{authError}</p>
+                </div>
+            </div>
+        );
+    }
+    if (dashboardError) {
         return (
             <div className="bg-background flex flex-col items-center justify-center p-6 w-full h-full">
                 <div className="text-center">
                     <h2 className="text-2xl font-bold text-foreground mb-4">Terjadi Kesalahan</h2>
-                    <p className="text-muted-foreground mb-6">{error}</p>
+                    <p className="text-muted-foreground mb-6">{dashboardError}</p>
                     <button
-                        onClick={() => fetchDashboardData}
+                        onClick={fetchDashboardData} // Perbaiki onClick di sini
                         className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90"
                     >
                         Coba Lagi
@@ -421,6 +405,11 @@ function DashboardContent() {
                 </div>
             </div>
         );
+    }
+    // Jika user tidak ada setelah loading auth selesai (seharusnya sudah di-redirect oleh AuthContext)
+    if (!user) {
+        // Bisa return null atau komponen "Unauthorized" jika AuthContext tidak redirect
+        return <Loading />; // Atau null, karena redirect seharusnya sudah terjadi
     }
 
     return (
