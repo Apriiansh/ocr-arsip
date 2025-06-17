@@ -237,7 +237,7 @@ export default function RetensiArsipPage() {
                     <div className="bg-primary/10 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-3 rounded-lg">
                         <div className="flex-grow">
                             <h2 className="text-2xl font-bold flex items-center gap-2 text-primary">
-                                <CalendarClock size={24} /> Daftar Arsip Jatuh Tempo Retensi
+                                <CalendarClock size={24} /> Monitoring Masa Retensi Arsip Aktif 
                             </h2>
                         </div>
                         <Link href="/arsip/pemindahan" passHref>
