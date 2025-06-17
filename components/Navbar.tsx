@@ -9,6 +9,7 @@ import { Menu, X, ChevronDown, ChevronRight, User, Settings, FileText, BarChart,
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { signOutAction } from "@/app/actions";
 import { useAuth } from "@/context/AuthContext"; // Impor useAuth
+import NavbarLoadingSkeleton from "./NavbarLoadingSkeleton"; // Impor komponen skeleton
 
 // Constants for roles and styling
 const ROLES = {
@@ -710,8 +711,7 @@ export default function Navbar() {
   const displayName = user?.user_metadata?.display_name || user?.email;
 
   if (isAuthLoading) {
-    // Tampilkan versi loading dari Navbar atau null
-    return <nav className="bg-primary text-primary-foreground border-b border-border shadow-sm sticky top-0 z-50 h-16 flex items-center justify-center">Memuat Navigasi...</nav>;
+    return <NavbarLoadingSkeleton />; 
   }
 
   return (
