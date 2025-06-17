@@ -30,6 +30,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
 }
 
+const GLOBAL_LOADING_TIMEOUT = 10 * 1000; // 10 detik
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -122,6 +124,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       authListener?.subscription.unsubscribe();
     };
   }, [supabase, router, pathname, fetchUserDetails]);
+
+  // Timeout untuk isLoading global
+  useEffect(() => {
+    let loadingTimer: NodeJS.Timeout | null = null;
+
+    if (isLoading) {
+      loadingTimer = setTimeout(() => {
+        console.warn(`AuthContext: isLoading has been true for over ${GLOBAL_LOADING_TIMEOUT / 1000} seconds. Forcing page refresh.`);
+        window.location.reload();
+      }, GLOBAL_LOADING_TIMEOUT);
+    } else {
+      if (loadingTimer) {
+        clearTimeout(loadingTimer);
+      }
+    }
+
+    return () => {
+      if (loadingTimer) clearTimeout(loadingTimer);
+    };
+  }, [isLoading]);
 
   const signOut = async () => {
     setIsLoading(true);

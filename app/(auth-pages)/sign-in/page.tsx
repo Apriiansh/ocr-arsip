@@ -41,7 +41,7 @@ export default function SignIn() {
   };
 
   return (
-    <div className="card-neon relative w-full max-w-lg px-10 pt-8 pb-25 md:px-10 md:pt-10 md:pb-16 justify-center mx-auto">
+    <div className="card-neon relative w-full max-w-lg px-10 pt-2 pb-25 md:px-10 md:pt-10 md:pb-16 justify-center mx-auto">
       <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-6 text-center">
         Sign In
       </h2>
