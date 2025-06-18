@@ -149,7 +149,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     await supabase.auth.signOut();
     setUser(null);
-    router.refresh(); // Untuk memastikan state direset
+    router.refresh();
     setIsLoading(false);
   };
 

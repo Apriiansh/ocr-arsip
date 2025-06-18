@@ -34,12 +34,14 @@ export const updateSession = async (request: NextRequest) => {
     // This will refresh session if expired - required for Server Components
     const { pathname } = request.nextUrl;
 
-    const { data: { user }, error: getUserError } = await supabase.auth.getUser();
+    // Kita tetap memanggil getUser() untuk me-refresh sesi jika ada,
+    // tapi logika redirect akan diubah.
+    await supabase.auth.getUser();
 
     // Rute autentikasi (pengguna yang sudah login akan dialihkan dari sini)
-    const authRoutes = ["/sign-in", "/sign-up"];
-    // Daftar path yang memerlukan otentikasi
-    const protectedRoutes = [
+    const authRoutes = ["/sign-in"]; // Hanya /sign-in yang dianggap rute auth utama
+    const publicRoutes = ["/sign-in", "/sign-up", "/user-manual"]; // Rute yang bisa diakses tanpa login
+    /* Daftar path yang memerlukan otentikasi (sekarang semua rute selain publicRoutes akan memerlukan login)
       "/unit-pengolah",
       "/unit-kearsipan",
       "/arsip",
@@ -48,37 +50,26 @@ export const updateSession = async (request: NextRequest) => {
       "/admin",
       "/kepala-dinas",
       "/settings",
-    ];
+    ];*/
 
     // Make auth route check more precise
     const isAuthRoute = authRoutes.some(route => pathname === route || pathname.startsWith(route + '/'));
-    const isProtectedRoute = protectedRoutes.some(route => {
-      // For /user, only match /user or /user/*, to prevent /user-manual from being protected
-      if (route === "/user") return pathname === "/user" || pathname.startsWith("/user/");
-      return pathname.startsWith(route);
-    });
+    const isPublicRoute = publicRoutes.some(route => pathname === route || pathname.startsWith(route + '/'));
 
-    if (getUserError && getUserError.message === 'fetch failed') {
-      // Jika fetch failed, biarkan akses ke rute non-protected
-      // Rute terproteksi akan tetap diblokir oleh !user di bawah
-      // Optionally log the error:
-      // console.error(`Middleware (${pathname}): supabase.auth.getUser() gagal dengan "fetch failed".`);
-    }
-
+    // Jika pengguna mencoba mengakses halaman sign-in, biarkan saja.
     if (isAuthRoute) {
-      if (user && !getUserError) {
-        // Jika user sudah login dan akses halaman auth, redirect ke home
-        return NextResponse.redirect(new URL("/", request.url));
-      }
       return response;
     }
 
-    if (isProtectedRoute) {
-      if (!user) {
-        // Jika belum login dan akses halaman terproteksi, redirect ke sign-in
-        const redirectUrl = new URL("/sign-in", request.url);
-        redirectUrl.searchParams.set('redirectedFrom', pathname);
-        return NextResponse.redirect(redirectUrl);
+    // Jika bukan rute publik dan bukan rute sign-in,
+    // selalu coba ambil sesi pengguna. Jika tidak ada sesi, redirect ke sign-in.
+    // Ini efektif membuat semua halaman (kecuali yang eksplisit publik) memerlukan login.
+    if (!isPublicRoute) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+          const redirectUrl = new URL("/sign-in", request.url);
+          redirectUrl.searchParams.set('redirectedFrom', pathname); // Opsional, jika ingin redirect kembali setelah login
+          return NextResponse.redirect(redirectUrl);
       }
     }
 
