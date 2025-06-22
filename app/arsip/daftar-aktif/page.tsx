@@ -3,11 +3,11 @@
 import { useEffect, useState, useCallback, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Search, Trash2, Eye, FileText, FolderOpen, Filter, Archive, FileSpreadsheet } from "lucide-react"; // Tambahkan FileSpreadsheet
+import { ChevronLeft, ChevronRight, Search, Trash2, Eye, FileText, FolderOpen, Filter, Archive, FileSpreadsheet, ListChecks } from "lucide-react"; // Tambahkan FileSpreadsheet dan ListChecks
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { exportArsipAktifToExcel } from './components/DaftarArsipAktifExcel';
-import { useAuth } from "@/context/AuthContext"; // Impor useAuth
+import { useAuth } from "@/context/AuthContext";
 import Loading from "./loading";
 
 interface LokasiPenyimpanan {
@@ -28,17 +28,38 @@ export interface ArsipRow {
   jangka_simpan: string | null;
   tingkat_perkembangan: string | null;
   media_simpan: string | null;
-  file_url: string | null;
   status_persetujuan: string | null;
+  akses: string | null;
   lokasi_penyimpanan: LokasiPenyimpanan | LokasiPenyimpanan[] | null;
 }
+export interface IsiBerkasRow {
+  id_isi_arsip: string;
+  id_berkas_induk_fkey: string;
+  nomor_item: string;
+  kode_klasifikasi: string;
+  uraian_informasi: string;
+  kurun_waktu: string | null;
+  jumlah: number | null;
+  keterangan: string | null;
+  jangka_simpan: string | null;
+  tingkat_perkembangan: string | null;
+  media_simpan: string | null;
+  file_url: string | null;
+  berkas_arsip_aktif: {
+    nomor_berkas: number;
+    uraian_informasi: string;
+    akses: string | null;
+    lokasi_penyimpanan: LokasiPenyimpanan | LokasiPenyimpanan[] | null;
+  } | null;
+}
+
+type ViewMode = "berkas" | "isiBerkas";
 
 function getLokasiObj(lokasi: ArsipRow["lokasi_penyimpanan"]): LokasiPenyimpanan | null {
   if (!lokasi) return null;
   if (Array.isArray(lokasi)) return lokasi[0] || null;
   return lokasi;
 }
-
 export default function DaftarArsipAktif() {
   const supabase = createClient();
   const router = useRouter();
@@ -49,114 +70,189 @@ export default function DaftarArsipAktif() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10; // Jumlah item per halaman
-  const [sortConfig, setSortConfig] = useState<{ key: 'nomor_berkas' | 'kode_klasifikasi'; direction: 'asc' | 'desc' }>({ key: 'nomor_berkas', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'nomor_berkas', direction: 'asc' });
   const [isReordering, setIsReordering] = useState(false); // State untuk loading saat reorder
   const [isExporting, setIsExporting] = useState(false); // State untuk loading saat export
   const [statusFilterAktif, setStatusFilterAktif] = useState<string>("Semua"); // "Semua", "Menunggu", "Disetujui", "Ditolak"
+  const [viewMode, setViewMode] = useState<ViewMode>("berkas");
+  const [isiBerkasList, setIsiBerkasList] = useState<IsiBerkasRow[]>([]);
 
   const ALLOWED_ROLE = "Pegawai";
   const DEFAULT_HOME_PATH = "/"; // Akan di-handle oleh HomeRedirect
 
   const fetchData = useCallback(async () => {
-  if (user?.id_bidang_fkey === null || user?.id_bidang_fkey === undefined) {
-    console.log("fetchData (daftar-aktif): user.id_bidang_fkey is null or undefined, aborting fetch.");
-    setDataLoading(false);
-    setArsipList([]);
-    setTotalPages(0);
-    return;
-  }
-  setDataLoading(true);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage - 1;
-  console.log(`fetchData (daftar-aktif): Querying with user.id_bidang_fkey: ${user.id_bidang_fkey}, page: ${currentPage}, itemsPerPage: ${itemsPerPage}, range: ${startIndex}-${endIndex}`);
-
-  try {
-    // 1. Fetch IDs from pemindahan_arsip_link to exclude
-    const { data: pemindahanLinks, error: pemindahanError } = await supabase
-      .from('pemindahan_arsip_link')
-      .select('id_arsip_aktif_fkey');
-
-    if (pemindahanError) {
-      toast.error("Gagal memuat data link pemindahan: " + pemindahanError.message);
-      setArsipList([]);
-      setTotalPages(0);
+    if (user?.id_bidang_fkey === null || user?.id_bidang_fkey === undefined) {
+      console.log("fetchData (daftar-aktif): user.id_bidang_fkey is null or undefined, aborting fetch.");
       setDataLoading(false);
+      setArsipList([]);
+      setIsiBerkasList([]);
+      setTotalPages(0);
       return;
     }
+    setDataLoading(true);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage - 1;
 
-    const idsToExclude = pemindahanLinks?.map(link => link.id_arsip_aktif_fkey).filter(id => id != null) || [];
+    try {
+      if (viewMode === "berkas") {
+        const { data: pemindahanLinks, error: pemindahanError } = await supabase
+          .from('pemindahan_arsip_link')
+          .select('id_arsip_aktif_fkey');
 
-    // 2. Fetch arsip_aktif data
-    let query = supabase
-      .from("arsip_aktif")
-      .select(`
-        id_arsip_aktif,
-        nomor_berkas,
-        kode_klasifikasi,
-        uraian_informasi,
-        kurun_waktu,
-        jumlah,
-        keterangan,
-        jangka_simpan,
-        tingkat_perkembangan,
-        media_simpan,
-        file_url,
-        status_persetujuan,
-        lokasi_penyimpanan!inner (
-          id_bidang_fkey,
-          no_filing_cabinet,
-          no_laci,
-          no_folder
-        )
-      `, { count: "exact" })
-      .eq('lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey); // Filter berdasarkan id_bidang_fkey dari lokasi_penyimpanan
+        if (pemindahanError) {
+          toast.error("Gagal memuat data link pemindahan: " + pemindahanError.message);
+          setArsipList([]);
+          setTotalPages(0);
+          setDataLoading(false);
+          return;
+        }
+        const idsToExclude = pemindahanLinks?.map(link => link.id_arsip_aktif_fkey).filter(id => id != null) || [];
 
-    if (idsToExclude.length > 0) {
-      const idsToExcludeString = `(${idsToExclude.join(',')})`;
-      query = query.not('id_arsip_aktif', 'in', idsToExcludeString); // Filter arsip yang tidak ada di tabel pemindahan_arsip_link
-    }
+        let query = supabase
+          .from("arsip_aktif")
+          .select(`
+            id_arsip_aktif, nomor_berkas, kode_klasifikasi, uraian_informasi, kurun_waktu, jumlah, 
+            keterangan, jangka_simpan, tingkat_perkembangan, media_simpan, status_persetujuan, akses,
+            lokasi_penyimpanan!inner (id_bidang_fkey, no_filing_cabinet, no_laci, no_folder)
+          `, { count: "exact" })
+          .eq('lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey);
 
-    // Apply status filter
-    if (statusFilterAktif !== "Semua") {
-      query = query.eq('status_persetujuan', statusFilterAktif);
-    }
+        if (idsToExclude.length > 0) {
+          query = query.not('id_arsip_aktif', 'in', `(${idsToExclude.join(',')})`);
+        }
+        if (statusFilterAktif !== "Semua") {
+          query = query.eq('status_persetujuan', statusFilterAktif);
+        }
+        query = query.order(sortConfig.key as keyof ArsipRow, { ascending: sortConfig.direction === 'asc' });
+        if (sortConfig.key === 'nomor_berkas') query = query.order('id_arsip_aktif', { ascending: true });
+        else if (sortConfig.key === 'kode_klasifikasi') {
+          query = query.order('nomor_berkas', { ascending: true });
+          query = query.order('id_arsip_aktif', { ascending: true });
+        } else query = query.order('id_arsip_aktif', { ascending: true });
 
-    // Apply sorting from sortConfig
-    query = query.order(sortConfig.key, { ascending: sortConfig.direction === 'asc' });
+        const { data, error, count } = await query.range(startIndex, endIndex);
 
-    // Add a secondary sort for stability to ensure consistent ordering
-    if (sortConfig.key === 'nomor_berkas') {
-      query = query.order('id_arsip_aktif', { ascending: true }); // Secondary sort by ID if primary is nomor_berkas
-    } else if (sortConfig.key === 'kode_klasifikasi') {
-      // If sorting by kode_klasifikasi, use nomor_berkas as secondary, then id_arsip_aktif
-      query = query.order('nomor_berkas', { ascending: true }); 
-      query = query.order('id_arsip_aktif', { ascending: true });
-    } else {
-      query = query.order('id_arsip_aktif', { ascending: true }); // Default secondary sort
-    }
-    const { data, error, count } = await query
-      .range(startIndex, endIndex); // Tambahkan range untuk pagination
+        if (error) throw error;
+        setArsipList((data as unknown as ArsipRow[]) || []);
+        setIsiBerkasList([]); // Clear other mode's data
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage));
 
-    console.log(`fetchData (daftar-aktif): Arsip data query result - data:`, data, "count:", count, "error:", error);
+      } else if (viewMode === "isiBerkas") {
+        const { data: pemindahanIsiLinks, error: pemindahanIsiError } = await supabase
+          .from('pemindahan_isi_berkas')
+          .select('id_isi_arsip');
+        if (pemindahanIsiError) {
+          toast.error("Gagal memuat data pemindahan isi berkas: " + pemindahanIsiError.message);
+          setIsiBerkasList([]);
+          setArsipList([]);
+          setTotalPages(0);
+          setDataLoading(false);
+          return;
+        }
+        const isiIdsToExclude = pemindahanIsiLinks?.map(link => link.id_isi_arsip).filter(id => id != null) || [];    
 
-    if (error) {
-      toast.error("Gagal memuat data arsip: " + error.message);
+        let query = supabase
+          .from("daftar_isi_arsip_aktif")
+          .select(`
+            id_isi_arsip, id_berkas_induk_fkey, nomor_item, kode_klasifikasi, uraian_informasi,
+            kurun_waktu, jumlah, keterangan, jangka_simpan, tingkat_perkembangan, media_simpan, file_url,
+            berkas_arsip_aktif:id_berkas_induk_fkey!inner (
+              nomor_berkas, uraian_informasi, akses,
+              lokasi_penyimpanan!inner(id_bidang_fkey)
+            )
+          `, { count: "exact" })
+          .eq('berkas_arsip_aktif.lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey);
+
+        if (isiIdsToExclude.length > 0) {
+          query = query.not('id_isi_arsip', 'in', `(${isiIdsToExclude.join(',')})`);
+        }
+
+        // Untuk mode isiBerkas, kita akan fetch semua data dulu, lalu sort di client-side
+        // karena pengurutan nomor_item perlu dilakukan secara numerik
+        const { data: allData, error, count } = await query;
+
+        if (error) throw error;
+
+        // Sort data di client-side dengan logika numerik yang benar
+        const sortedData = (allData as unknown as IsiBerkasRow[])?.sort((a, b) => {
+          // Extract nomor berkas dari nomor_item (bagian sebelum titik)
+          const getNomorBerkas = (nomorItem: string) => {
+            const parts = nomorItem.split('.');
+            return parseInt(parts[0] || "0", 10);
+          };
+
+          // Extract nomor item dari nomor_item (bagian setelah titik)
+          const getNomorItem = (nomorItem: string) => {
+            const parts = nomorItem.split('.');
+            return parseInt(parts[1] || "0", 10);
+          };
+
+          if (sortConfig.key === 'nomor_item') {
+            // Sort berdasarkan nomor berkas dulu, kemudian nomor item
+            const berkasA = getNomorBerkas(a.nomor_item);
+            const berkasB = getNomorBerkas(b.nomor_item);
+
+            if (berkasA !== berkasB) {
+              return sortConfig.direction === 'asc' ? berkasA - berkasB : berkasB - berkasA;
+            }
+
+            // Jika nomor berkas sama, sort berdasarkan nomor item
+            const itemA = getNomorItem(a.nomor_item);
+            const itemB = getNomorItem(b.nomor_item);
+            return sortConfig.direction === 'asc' ? itemA - itemB : itemB - itemA;
+
+          } else if (sortConfig.key === 'kode_klasifikasi') {
+            const kodeCompare = (a.kode_klasifikasi || '').localeCompare(b.kode_klasifikasi || '');
+            if (kodeCompare !== 0) {
+              return sortConfig.direction === 'asc' ? kodeCompare : -kodeCompare;
+            }
+            // Secondary sort by nomor_item jika kode sama
+            const berkasA = getNomorBerkas(a.nomor_item);
+            const berkasB = getNomorBerkas(b.nomor_item);
+            if (berkasA !== berkasB) return berkasA - berkasB;
+            const itemA = getNomorItem(a.nomor_item);
+            const itemB = getNomorItem(b.nomor_item);
+            return itemA - itemB;
+
+          } else if (sortConfig.key === 'uraian_informasi') {
+            const uraianCompare = (a.uraian_informasi || '').localeCompare(b.uraian_informasi || '');
+            if (uraianCompare !== 0) {
+              return sortConfig.direction === 'asc' ? uraianCompare : -uraianCompare;
+            }
+            // Secondary sort by nomor_item jika uraian sama
+            const berkasA = getNomorBerkas(a.nomor_item);
+            const berkasB = getNomorBerkas(b.nomor_item);
+            if (berkasA !== berkasB) return berkasA - berkasB;
+            const itemA = getNomorItem(a.nomor_item);
+            const itemB = getNomorItem(b.nomor_item);
+            return itemA - itemB;
+          }
+
+          // Default sort by nomor_item
+          const berkasA = getNomorBerkas(a.nomor_item);
+          const berkasB = getNomorBerkas(b.nomor_item);
+          if (berkasA !== berkasB) return berkasA - berkasB;
+          const itemA = getNomorItem(a.nomor_item);
+          const itemB = getNomorItem(b.nomor_item);
+          return itemA - itemB;
+        }) || [];
+
+        // Apply pagination pada data yang sudah di-sort
+        const paginatedData = sortedData.slice(startIndex, startIndex + itemsPerPage);
+
+        setIsiBerkasList(paginatedData);
+        setArsipList([]); 
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage));
+      }
+    } catch (e: any) {
+      toast.error("Gagal memuat data: " + e.message);
       setArsipList([]);
+      setIsiBerkasList([]);
       setTotalPages(0);
-    } else {
-      setArsipList(data as unknown as ArsipRow[] || []);
-      setTotalPages(Math.ceil((count || 0) / itemsPerPage));
+    } finally {
+      setDataLoading(false);
     }
-  } catch (e: any) {
-    console.error("fetchData (daftar-aktif): Unexpected error during fetch:", e);
-    toast.error("Terjadi kesalahan tak terduga saat mengambil data: " + e.message);
-    setArsipList([]);
-    setTotalPages(0);
-  }
- finally {
-    setDataLoading(false);
-  }
-}, [currentPage, itemsPerPage, supabase, user, sortConfig, statusFilterAktif]); // Ganti userBidangId dengan user
+  }, [currentPage, itemsPerPage, supabase, user, sortConfig, statusFilterAktif, viewMode]);
 
   useEffect(() => {
     console.log("useEffect (auth check): Running checkAuth...");
@@ -202,10 +298,12 @@ export default function DaftarArsipAktif() {
       console.log("useEffect (fetchData trigger): user.id_bidang_fkey is null or auth is loading, skipping fetchData.");
     }
   }, [user, isAuthLoading, currentPage, fetchData, sortConfig, statusFilterAktif]); // Ganti userBidangId dengan user dan isAuthLoading
-  
+
   const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
+    setCurrentPage(1);
   }, []);
+
   const filteredArsip = useMemo(() => {
     return arsipList.filter(
       (arsip) =>
@@ -214,17 +312,29 @@ export default function DaftarArsipAktif() {
     );
   }, [arsipList, searchTerm]);
 
-  const handleDelete = useCallback(async (idArsip: string) => {
-    if (!window.confirm("Apakah Anda yakin ingin menghapus arsip ini?")) return;
+  const filteredIsiBerkas = useMemo(() => {
+    return isiBerkasList.filter(
+      (item) =>
+        item.kode_klasifikasi.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.uraian_informasi.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.nomor_item.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [isiBerkasList, searchTerm]);
+
+  const handleDelete = useCallback(async (id: string, type: 'berkas' | 'isiBerkas') => {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus ${type === 'berkas' ? 'berkas' : 'item isi berkas'} ini?`)) return;
     setDataLoading(true); // Tampilkan loading saat menghapus
 
+    const fromTable = type === 'berkas' ? 'arsip_aktif' : 'daftar_isi_arsip_aktif';
+    const idColumn = type === 'berkas' ? 'id_arsip_aktif' : 'id_isi_arsip';
+
     const { error } = await supabase
-      .from("arsip_aktif")
+      .from(fromTable)
       .delete()
-      .eq("id_arsip_aktif", idArsip);
+      .eq(idColumn, id);
 
     if (error) {
-      toast.error("Gagal menghapus arsip.");
+      toast.error(`Gagal menghapus ${type === 'berkas' ? 'berkas' : 'item isi berkas'}.`);
       console.error("Error deleting data:", error.message || error);
       setDataLoading(false);
     } else {
@@ -245,34 +355,208 @@ export default function DaftarArsipAktif() {
     }
   };
 
-  const handleSortRequest = (key: 'nomor_berkas' | 'kode_klasifikasi') => {
+  const handleSortRequest = (key: string) => {
     setSortConfig(currentSortConfig => {
       if (currentSortConfig.key === key) {
-        // Toggle direction if same key
         return { key, direction: currentSortConfig.direction === 'asc' ? 'desc' : 'asc' };
       }
-      // New key, default to ascending
       return { key, direction: 'asc' };
     });
     setCurrentPage(1); // Reset ke halaman pertama saat sorting berubah
   };
 
+  // Perbaikan untuk handleExportExcel function
   const handleExportExcel = useCallback(async () => {
-    if (!filteredArsip.length) {
-      toast.warn("Tidak ada data arsip untuk diekspor.");
+    if (!user?.id_bidang_fkey) {
+      toast.error("ID Bidang pengguna tidak ditemukan.");
       return;
     }
+
     setIsExporting(true);
+
     try {
-      await exportArsipAktifToExcel({ data: filteredArsip, userBidangId: user?.id_bidang_fkey });
-      toast.success("Data arsip berhasil diekspor ke Excel!");
-    } catch (error) {
-      toast.error("Gagal mengekspor data ke Excel.");
+      // 1. Fetch ALL arsip_aktif data yang sudah disetujui
+      const { data: pemindahanLinks, error: pemindahanError } = await supabase
+        .from('pemindahan_arsip_link')
+        .select('id_arsip_aktif_fkey');
+
+      if (pemindahanError) {
+        throw new Error("Gagal memuat data link pemindahan: " + pemindahanError.message);
+      }
+
+      const idsToExclude = pemindahanLinks?.map(link => link.id_arsip_aktif_fkey).filter(id => id != null) || [];
+
+      // Fetch semua berkas arsip aktif yang DISETUJUI
+      let berkasQuery = supabase
+        .from("arsip_aktif")
+        .select(`
+        id_arsip_aktif, nomor_berkas, kode_klasifikasi, uraian_informasi, kurun_waktu, jumlah, 
+        keterangan, jangka_simpan, tingkat_perkembangan, media_simpan, status_persetujuan, akses,
+        lokasi_penyimpanan!inner (id_bidang_fkey, no_filing_cabinet, no_laci, no_folder)
+      `)
+        .eq('lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey)
+        .eq('status_persetujuan', 'Disetujui'); // Hanya yang sudah disetujui
+
+      if (idsToExclude.length > 0) {
+        berkasQuery = berkasQuery.not('id_arsip_aktif', 'in', `(${idsToExclude.join(',')})`);
+      }
+
+      // Apply search filter jika ada
+      if (searchTerm.trim()) {
+        berkasQuery = berkasQuery.or(`kode_klasifikasi.ilike.%${searchTerm}%,uraian_informasi.ilike.%${searchTerm}%`);
+      }
+
+      // PERBAIKAN: Fetch data tanpa sorting di database, kita akan sort di client-side
+      const { data: allBerkasData, error: berkasError } = await berkasQuery;
+
+      if (berkasError) {
+        throw new Error("Gagal mengambil data berkas: " + berkasError.message);
+      }
+
+      // PERBAIKAN: Sort berkas data dengan logika yang sama seperti di fetchData
+      const sortedBerkasData = (allBerkasData as unknown as ArsipRow[])?.sort((a, b) => {
+        if (sortConfig.key === 'nomor_berkas') {
+          if (sortConfig.direction === 'asc') {
+            return (a.nomor_berkas || 0) - (b.nomor_berkas || 0);
+          } else {
+            return (b.nomor_berkas || 0) - (a.nomor_berkas || 0);
+          }
+        } else if (sortConfig.key === 'kode_klasifikasi') {
+          const kodeCompare = (a.kode_klasifikasi || '').localeCompare(b.kode_klasifikasi || '');
+          if (kodeCompare !== 0) {
+            return sortConfig.direction === 'asc' ? kodeCompare : -kodeCompare;
+          }
+          // Secondary sort by nomor_berkas
+          return (a.nomor_berkas || 0) - (b.nomor_berkas || 0);
+        } else if (sortConfig.key === 'uraian_informasi') {
+          const uraianCompare = (a.uraian_informasi || '').localeCompare(b.uraian_informasi || '');
+          if (uraianCompare !== 0) {
+            return sortConfig.direction === 'asc' ? uraianCompare : -uraianCompare;
+          }
+          // Secondary sort by nomor_berkas
+          return (a.nomor_berkas || 0) - (b.nomor_berkas || 0);
+        }
+
+        // Default sort by nomor_berkas
+        return (a.nomor_berkas || 0) - (b.nomor_berkas || 0);
+      }) || [];
+
+      // 2. Fetch ALL daftar isi arsip aktif (tanpa filter status persetujuan)
+      let isiQuery = supabase
+        .from("daftar_isi_arsip_aktif")
+        .select(`
+        id_isi_arsip, id_berkas_induk_fkey, nomor_item, kode_klasifikasi, uraian_informasi,
+        kurun_waktu, jumlah, keterangan, jangka_simpan, tingkat_perkembangan, media_simpan, file_url,
+        berkas_arsip_aktif:id_berkas_induk_fkey!inner (
+          nomor_berkas, uraian_informasi, akses,
+          lokasi_penyimpanan!inner(id_bidang_fkey)
+        )
+      `)
+        .eq('berkas_arsip_aktif.lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey);
+
+      // Apply search filter jika ada
+      if (searchTerm.trim()) {
+        isiQuery = isiQuery.or(`kode_klasifikasi.ilike.%${searchTerm}%,uraian_informasi.ilike.%${searchTerm}%,nomor_item.ilike.%${searchTerm}%`);
+      }
+
+      const { data: allIsiData, error: isiError } = await isiQuery;
+
+      if (isiError) {
+        throw new Error("Gagal mengambil data isi berkas: " + isiError.message);
+      }
+
+      // PERBAIKAN: Sort isi berkas data dengan logika yang SAMA PERSIS seperti di fetchData
+      const sortedIsiData = (allIsiData as unknown as IsiBerkasRow[])?.sort((a, b) => {
+        // Extract nomor berkas dari nomor_item (bagian sebelum titik)
+        const getNomorBerkas = (nomorItem: string) => {
+          const parts = nomorItem.split('.');
+          return parseInt(parts[0] || "0", 10);
+        };
+
+        // Extract nomor item dari nomor_item (bagian setelah titik)
+        const getNomorItem = (nomorItem: string) => {
+          const parts = nomorItem.split('.');
+          return parseInt(parts[1] || "0", 10);
+        };
+
+        if (sortConfig.key === 'nomor_item') {
+          // Sort berdasarkan nomor berkas dulu, kemudian nomor item
+          const berkasA = getNomorBerkas(a.nomor_item);
+          const berkasB = getNomorBerkas(b.nomor_item);
+
+          if (berkasA !== berkasB) {
+            return sortConfig.direction === 'asc' ? berkasA - berkasB : berkasB - berkasA;
+          }
+
+          // Jika nomor berkas sama, sort berdasarkan nomor item
+          const itemA = getNomorItem(a.nomor_item);
+          const itemB = getNomorItem(b.nomor_item);
+          return sortConfig.direction === 'asc' ? itemA - itemB : itemB - itemA;
+
+        } else if (sortConfig.key === 'kode_klasifikasi') {
+          const kodeCompare = (a.kode_klasifikasi || '').localeCompare(b.kode_klasifikasi || '');
+          if (kodeCompare !== 0) {
+            return sortConfig.direction === 'asc' ? kodeCompare : -kodeCompare;
+          }
+          // Secondary sort by nomor_item jika kode sama
+          const berkasA = getNomorBerkas(a.nomor_item);
+          const berkasB = getNomorBerkas(b.nomor_item);
+          if (berkasA !== berkasB) return berkasA - berkasB;
+          const itemA = getNomorItem(a.nomor_item);
+          const itemB = getNomorItem(b.nomor_item);
+          return itemA - itemB;
+
+        } else if (sortConfig.key === 'uraian_informasi') {
+          const uraianCompare = (a.uraian_informasi || '').localeCompare(b.uraian_informasi || '');
+          if (uraianCompare !== 0) {
+            return sortConfig.direction === 'asc' ? uraianCompare : -uraianCompare;
+          }
+          // Secondary sort by nomor_item jika uraian sama
+          const berkasA = getNomorBerkas(a.nomor_item);
+          const berkasB = getNomorBerkas(b.nomor_item);
+          if (berkasA !== berkasB) return berkasA - berkasB;
+          const itemA = getNomorItem(a.nomor_item);
+          const itemB = getNomorItem(b.nomor_item);
+          return itemA - itemB;
+        }
+
+        // Default sort by nomor_item
+        const berkasA = getNomorBerkas(a.nomor_item);
+        const berkasB = getNomorBerkas(b.nomor_item);
+        if (berkasA !== berkasB) return berkasA - berkasB;
+        const itemA = getNomorItem(a.nomor_item);
+        const itemB = getNomorItem(b.nomor_item);
+        return itemA - itemB;
+      }) || [];
+
+      // Debug log untuk memastikan data yang akan diekspor
+      console.log("DEBUG - Data yang akan diekspor:");
+      console.log("- Total berkas (disetujui):", sortedBerkasData?.length || 0);
+      console.log("- Total isi berkas:", sortedIsiData.length);
+
+      // Periksa apakah ada data untuk diekspor
+      if ((!sortedBerkasData || sortedBerkasData.length === 0) && sortedIsiData.length === 0) {
+        toast.warn("Tidak ada data arsip yang disetujui untuk diekspor.");
+        return;
+      }
+
+      // Panggil fungsi export dengan semua data yang sudah diurutkan
+      await exportArsipAktifToExcel({
+        berkasData: sortedBerkasData || [],
+        isiBerkasData: sortedIsiData,
+        userBidangId: user?.id_bidang_fkey,
+      });
+
+      toast.success(`Data arsip berhasil diekspor ke Excel! (${sortedBerkasData?.length || 0} berkas, ${sortedIsiData.length} isi berkas)`);
+
+    } catch (error: any) {
+      toast.error("Gagal mengekspor data ke Excel: " + error.message);
       console.error("Export Excel error:", error);
+    } finally {
+      setIsExporting(false);
     }
-    setIsExporting(false);
-  }, [filteredArsip, user?.id_bidang_fkey]); // Pastikan userBidangId diganti dengan user?.id_bidang_fkey
-  const getSortIndicator = (key: 'nomor_berkas' | 'kode_klasifikasi') => {
+  }, [user?.id_bidang_fkey, searchTerm, sortConfig, supabase]);
+  const getSortIndicator = (key: string) => {
     if (sortConfig.key === key) {
       return sortConfig.direction === 'asc' ? '↑' : '↓';
     }
@@ -280,13 +564,18 @@ export default function DaftarArsipAktif() {
   };
   
   const handleReorderAndSaveNomorBerkas = async () => {
+    if (viewMode === 'isiBerkas') {
+      toast.info("Penataan ulang nomor hanya berlaku untuk mode Berkas Arsip Aktif.");
+      return;
+    }
+
     if (!user?.id_bidang_fkey) {
       toast.error("ID Bidang pengguna tidak ditemukan.");
       return;
     }
   
     const confirmation = window.confirm(
-      `Anda akan menata ulang nomor berkas untuk semua arsip aktif di bidang Anda. Arsip akan diurutkan berdasarkan Kode Klasifikasi (urut abjad), lalu nomor laci (1-4), lalu nomor folder (urut kode klasifikasi), lalu tanggal pembuatan (terlama ke terbaru). Ini akan mengubah nomor berkas. Lanjutkan?`
+      `Anda akan menata ulang nomor berkas untuk semua Berkas Arsip Aktif di bidang Anda. Berkas akan diurutkan berdasarkan Kode Klasifikasi, lalu nomor laci, nomor folder, dan tanggal pembuatan. Ini akan mengubah nomor berkas. Lanjutkan?`
     );
   
     if (!confirmation) return;
@@ -381,6 +670,16 @@ export default function DaftarArsipAktif() {
       fetchData(); // Refresh data pada halaman saat ini
     }
   };
+
+  const handleViewModeChange = (newMode: ViewMode) => {
+    if (newMode !== viewMode) {
+      setViewMode(newMode);
+      setSearchTerm("");
+      setCurrentPage(1);
+      // Reset sort config or adjust based on new mode's default
+      setSortConfig({ key: newMode === 'berkas' ? 'nomor_berkas' : 'nomor_item', direction: 'asc' });
+    }
+  };
   
   if (isAuthLoading || dataLoading) {
     return <Loading />;
@@ -399,11 +698,30 @@ export default function DaftarArsipAktif() {
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <FolderOpen size={24} /> Daftar Arsip Aktif
           </h2>
-          <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 justify-center sm:justify-end items-center">
+            <div className="flex gap-1 p-0.5 bg-muted rounded-lg">
+              <button
+                onClick={() => handleViewModeChange("berkas")}
+                disabled={dataLoading}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ease-in-out flex items-center gap-1
+                            ${viewMode === 'berkas' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/50'}`}
+              >
+                <FolderOpen size={14} /> Berkas
+              </button>
+              <button
+                onClick={() => handleViewModeChange("isiBerkas")}
+                disabled={dataLoading}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200 ease-in-out flex items-center gap-1
+                            ${viewMode === 'isiBerkas' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/50'}`}
+              >
+                <ListChecks size={14} /> Isi Berkas
+              </button>
+            </div>
             <button
               onClick={handleExportExcel}
-              disabled={isExporting || dataLoading || isAuthLoading || filteredArsip.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 border border-green-600 text-green-600 rounded-lg text-sm font-medium hover:bg-green-600 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isExporting || dataLoading || isAuthLoading || (viewMode === 'berkas' && filteredArsip.length === 0) || (viewMode === 'isiBerkas' && filteredIsiBerkas.length === 0)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 border border-green-600 text-green-600 rounded-lg text-xs font-medium hover:bg-green-600 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Export data yang ditampilkan ke Excel"
             >
               <FileSpreadsheet size={18} />
               {isExporting ? "Mengekspor..." : "Export Excel"}
@@ -411,6 +729,7 @@ export default function DaftarArsipAktif() {
             <Link 
               href="/arsip/visual-filing-cabinet" 
               className="inline-flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-lg text-sm font-medium hover:bg-primary/10 transition-colors duration-200"
+              title="Lihat visualisasi filing cabinet"
             >
               <Archive size={18} />
               Visualisasi Filing
@@ -426,7 +745,7 @@ export default function DaftarArsipAktif() {
             </div>
             <input
               type="text"
-              placeholder="Cari berdasarkan kode klasifikasi atau uraian informasi..."
+              placeholder={viewMode === 'berkas' ? "Cari kode klasifikasi atau uraian berkas..." : "Cari nomor item, kode, atau uraian isi..."}
               value={searchTerm}
               onChange={handleSearch}
               className="w-full pl-10 pr-4 py-3 border border-border rounded-lg bg-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-colors duration-300"
@@ -436,6 +755,7 @@ export default function DaftarArsipAktif() {
         
         {/* Action Buttons Section */}
         <div className="px-6 py-3 border-b border-border/50 flex flex-col md:flex-row justify-between items-center gap-4">
+          {viewMode === 'berkas' && (
             <div className="relative min-w-[180px] w-full md:w-auto">
                 <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
                 <select
@@ -452,6 +772,8 @@ export default function DaftarArsipAktif() {
                     <option value="Ditolak">Ditolak</option>
                 </select>
             </div>
+          )}
+          {viewMode === 'berkas' && (
             <button
                 onClick={handleReorderAndSaveNomorBerkas}
                 disabled={isReordering || dataLoading || isAuthLoading || arsipList.length === 0}
@@ -459,69 +781,74 @@ export default function DaftarArsipAktif() {
             >
                 {isReordering ? "Menyimpan..." : `Tata Ulang`}
             </button>
+          )}
+          {viewMode === 'isiBerkas' && <div className="w-full md:w-auto"></div> /* Placeholder to keep layout consistent */}
         </div>
 
         {/* Table Section */}
         <div className="p-6 flex-grow flex flex-col overflow-auto">
-          {filteredArsip.length > 0 ? (
+          {(viewMode === 'berkas' && filteredArsip.length > 0) || (viewMode === 'isiBerkas' && filteredIsiBerkas.length > 0) ? (
             <table className="min-w-full divide-y divide-border rounded-lg overflow-hidden">
               <thead>
                 <tr className="bg-muted text-muted-foreground">
-                  <th 
-                    className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider cursor-pointer hover:bg-muted-foreground/10 group"
-                    onClick={() => handleSortRequest('nomor_berkas')}
-                  >
-                    No. Berkas <span className="ml-1">{getSortIndicator('nomor_berkas')}</span>
-                  </th>
-                  <th 
-                    className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider cursor-pointer hover:bg-muted-foreground/10 group"
-                    onClick={() => handleSortRequest('kode_klasifikasi')}
-                  >
-                    Kode <span className="ml-1">{getSortIndicator('kode_klasifikasi')}</span>
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Uraian Informasi</th>
+                  {viewMode === 'berkas' ? (
+                    <>
+                      <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider cursor-pointer hover:bg-muted-foreground/10 group" onClick={() => handleSortRequest('nomor_berkas')}>
+                        No. Berkas <span className="ml-1">{getSortIndicator('nomor_berkas')}</span>
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider cursor-pointer hover:bg-muted-foreground/10 group" onClick={() => handleSortRequest('kode_klasifikasi')}>
+                        Kode Klasifikasi<span className="ml-1">{getSortIndicator('kode_klasifikasi')}</span>
+                      </th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">No. Berkas</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider cursor-pointer hover:bg-muted-foreground/10 group" onClick={() => handleSortRequest('nomor_item')}>
+                        No. Item <span className="ml-1">{getSortIndicator('nomor_item')}</span>
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider cursor-pointer hover:bg-muted-foreground/10 group" onClick={() => handleSortRequest('kode_klasifikasi')}>
+                        Kode Klasifikasi <span className="ml-1">{getSortIndicator('kode_klasifikasi')}</span>
+                      </th>
+                    </>
+                  )}
+                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Uraian Informasi</th>
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Kurun Waktu</th>
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Jumlah</th>
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Tingkat</th>
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Media</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Lokasi</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Jangka Simpan</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Keterangan</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Status</th>
+                  {viewMode === 'berkas' && <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Lokasi</th>}
+                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Jangka Simpan</th>
+                  {viewMode === 'berkas' && <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Akses</th>}
+                  <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Keterangan</th>
+                  {viewMode === 'berkas' && <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Status</th>}
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Aksi</th>
                 </tr>
               </thead>
               <tbody className="bg-card divide-y divide-border">
-                {filteredArsip.map((arsip) => (
+                {viewMode === 'berkas' && filteredArsip.map((arsip) => (
                   <tr key={arsip.id_arsip_aktif} className="hover:bg-muted transition-colors duration-150">
                     <td className="px-4 py-3 text-sm text-center">{arsip.nomor_berkas}</td>
                     <td className="px-4 py-3 text-sm text-center">{arsip.kode_klasifikasi}</td>
-                    <td className="px-4 py-3 text-sm text-left max-w-xs truncate" title={arsip.uraian_informasi}>{arsip.uraian_informasi}</td>
+                    <td className="px-4 py-3 text-sm text-justify max-w-xs truncate" title={arsip.uraian_informasi}>{arsip.uraian_informasi}</td>
                     <td className="px-4 py-3 text-sm text-center">{arsip.kurun_waktu || '-'}</td>
                     <td className="px-4 py-3 text-sm text-center">{arsip.jumlah || '-'}</td>
                     <td className="px-4 py-3 text-sm text-center">{arsip.tingkat_perkembangan || '-'}</td>
                     <td className="px-4 py-3 text-sm text-center">{arsip.media_simpan || '-'}</td>
                     <td className="px-4 py-3 text-sm text-center">
-                      {(() => {
-                        const lokasi = getLokasiObj(arsip.lokasi_penyimpanan);
-                        return lokasi
-                          ? `${lokasi.no_filing_cabinet || '-'} / ${lokasi.no_laci || '-'} / ${lokasi.no_folder || '-'}`
-                          : '- / - / -';
-                      })()}
+                      {getLokasiObj(arsip.lokasi_penyimpanan)
+                        ? `${getLokasiObj(arsip.lokasi_penyimpanan)?.no_filing_cabinet || '-'} / ${getLokasiObj(arsip.lokasi_penyimpanan)?.no_laci || '-'} / ${getLokasiObj(arsip.lokasi_penyimpanan)?.no_folder || '-'}`
+                        : '- / - / -'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-left max-w-xs truncate" title={arsip.jangka_simpan || undefined}>{arsip.jangka_simpan || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-left max-w-xs truncate" title={arsip.keterangan || undefined}>{arsip.keterangan || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-center max-w-xs truncate" title={arsip.jangka_simpan || undefined}>{arsip.jangka_simpan || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-center">{arsip.akses || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-center max-w-xs truncate" title={arsip.keterangan || undefined}>{arsip.keterangan || '-'}</td>
                     <td className="px-4 py-3 text-sm text-center">
-                      <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${arsip.status_persetujuan === "Disetujui"
-                            ? "bg-green-100 text-green-700 dark:bg-green-700/20 dark:text-green-400"
-                            : arsip.status_persetujuan === "Ditolak"
-                              ? "bg-red-100 text-red-700 dark:bg-red-700/20 dark:text-red-400"
-                              : arsip.status_persetujuan === "Menunggu"
-                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/20 dark:text-yellow-400"
-                                : "bg-gray-100 text-gray-700 dark:bg-gray-700/20 dark:text-gray-400"
-                          }`}
-                      >
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        arsip.status_persetujuan === "Disetujui" ? "bg-green-100 text-green-700 dark:bg-green-700/20 dark:text-green-400"
+                        : arsip.status_persetujuan === "Ditolak" ? "bg-red-100 text-red-700 dark:bg-red-700/20 dark:text-red-400"
+                        : arsip.status_persetujuan === "Menunggu" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/20 dark:text-yellow-400"
+                        : "bg-gray-100 text-gray-700 dark:bg-gray-700/20 dark:text-gray-400"
+                      }`}>
                         {arsip.status_persetujuan || "N/A"}
                       </span>
                     </td>
@@ -536,10 +863,45 @@ export default function DaftarArsipAktif() {
                             </button>
                         </Link>
                         <button
-                            onClick={() => handleDelete(arsip.id_arsip_aktif)}
+                            onClick={() => handleDelete(arsip.id_arsip_aktif, 'berkas')}
                             className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-destructive group ml-2 transition-all duration-150 ease-in-out"
                             title="Hapus Arsip"
                             aria-label="Hapus Arsip"
+                        >
+                            <Trash2 size={18} className="transform group-hover:scale-110 transition-transform duration-150" />
+                        </button>
+                    </td>
+                  </tr>
+                ))}
+                {viewMode === 'isiBerkas' && filteredIsiBerkas.map((item) => (
+                  <tr key={item.id_isi_arsip} className="hover:bg-muted transition-colors duration-150">
+                    <td className="px-4 py-3 text-sm text-center" title={item.berkas_arsip_aktif?.uraian_informasi}>
+                      {item.berkas_arsip_aktif?.nomor_berkas || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-center">{item.nomor_item}</td>
+                    <td className="px-4 py-3 text-sm text-center">{item.kode_klasifikasi}</td>
+                    <td className="px-4 py-3 text-sm text-left max-w-xs truncate" title={item.uraian_informasi}>{item.uraian_informasi}</td>
+                    <td className="px-4 py-3 text-sm text-center">{item.kurun_waktu || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-center">{item.jumlah || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-center">{item.tingkat_perkembangan || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-center">{item.media_simpan || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-left max-w-xs truncate" title={item.jangka_simpan || undefined}>{item.jangka_simpan || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-left max-w-xs truncate" title={item.keterangan || undefined}>{item.keterangan || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-center whitespace-nowrap">
+                        <Link href={`/arsip/arsip-aktif/detail-item/${item.id_isi_arsip}`} passHref>
+                            <button
+                                className="p-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary group transition-all duration-150 ease-in-out"
+                                title="Lihat Detail Item"
+                                aria-label="Lihat Detail Item Isi Arsip"
+                            >
+                                <Eye size={18} className="transform group-hover:scale-110 transition-transform duration-150" />
+                            </button>
+                        </Link>
+                        <button
+                            onClick={() => handleDelete(item.id_isi_arsip, 'isiBerkas')}
+                            className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-destructive group ml-2 transition-all duration-150 ease-in-out"
+                            title="Hapus Item Isi Arsip"
+                            aria-label="Hapus Item Isi Arsip"
                         >
                             <Trash2 size={18} className="transform group-hover:scale-110 transition-transform duration-150" />
                         </button>

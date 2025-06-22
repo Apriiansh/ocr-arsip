@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, Fragment } from 'react';
+import { Trash2, Eye, Edit, ArrowLeft, FolderOpen } from 'lucide-react'; 
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 
 interface ArsipAktifDetail {
     id_arsip_aktif: string;
@@ -12,32 +14,44 @@ interface ArsipAktifDetail {
     kode_klasifikasi: string;
     uraian_informasi: string;
     jumlah: number;
-    keterangan: string;
-    file_url: string | null;
+    keterangan: string; 
     user_id: string;
     created_at: string;
     tingkat_perkembangan: string | null;
     media_simpan: string | null;
     kurun_waktu: string | null;
-    jangka_simpan: string | null; // Ditambahkan dari daftar-aktif, sebelumnya masa_retensi
+    jangka_simpan: string | null; 
     status_persetujuan: string | null;
     id_lokasi_fkey: string | null;
-    users: { // Ubah kembali menjadi objek tunggal
+    users: { 
         nama: string;
-    } | null; // <-- Menjadi objek tunggal atau null
-    lokasi_penyimpanan: { // Asumsikan ini objek tunggal karena join dari arsip_aktif
+    } | null; // 
+    lokasi_penyimpanan: { 
         no_filing_cabinet: string;
         no_laci: string;
         no_folder: string;
-        daftar_bidang: { // Asumsikan ini objek tunggal karena join dari lokasi_penyimpanan
+        daftar_bidang: { 
             nama_bidang: string;
         } | null;
     } | null;
+    daftar_isi_arsip_aktif_count?: number; 
 }
 
-// pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`; // Dikomentari sementara
+// Definisi interface untuk daftar isi arsip aktif (disesuaikan untuk halaman detail ini)
+interface IsiBerkasDetailRow {
+    id_isi_arsip: string;
+    nomor_item: string;
+    kode_klasifikasi: string;
+    uraian_informasi: string;
+    kurun_waktu: string | null;
+    jumlah: number | null;
+    keterangan: string | null;
+    jangka_simpan: string | null;
+    tingkat_perkembangan: string | null;
+    media_simpan: string | null;
+    file_url: string | null;
+}
 
-// Loading Skeleton Component for Detail Page
 const DetailLoadingSkeleton = () => {
     return (
         <div className="w-full h-full p-6">
@@ -128,59 +142,107 @@ export default function ArsipDetailPage() {
 
     const [archiveData, setArchiveData] = useState<ArsipAktifDetail | null>(null);
     const [loading, setLoading] = useState(true);
+    const [itemCount, setItemCount] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isiBerkasList, setIsiBerkasList] = useState<IsiBerkasDetailRow[]>([]); 
+    
+    const { user, isLoading } = useAuth();
 
-    useEffect(() => {
-        if (!archiveId) {
-            setError("ID Arsip tidak ditemukan di URL.");
-            setLoading(false);
-            toast.error("ID Arsip tidak valid.");
-            return;
+    const getBackUrl = () => {
+        if (user?.role === "Kepala_Bidang") return "/unit-pengolah/verifikasi-arsip";
+        return "/arsip/daftar-aktif";
+      };
+
+    const fetchArchiveDetail = useCallback(async () => {
+        if (!archiveId) { 
+            setError("ID Arsip tidak ditemukan di URL."); 
+            setLoading(false); 
+            toast.error("ID Arsip tidak valid."); 
+            return; 
         }
 
-        const fetchArchiveDetail = async () => {
-            setLoading(true);
+        setLoading(true);
             setError(null);
             try {
-                const { data, error: fetchError } = await supabase
+                const { data: berkasData, error: berkasError } = await supabase
                     .from('arsip_aktif')
                     .select(`
-            id_arsip_aktif,
-            nomor_berkas,
-            kode_klasifikasi,
-            uraian_informasi,
-            jumlah,
-            keterangan,
-            file_url,
-            user_id,
-            created_at,
-            tingkat_perkembangan,
-            media_simpan,
-            kurun_waktu,
-            jangka_simpan,
-            status_persetujuan,
-            id_lokasi_fkey,
-            users:user_id (nama),
-            lokasi_penyimpanan:id_lokasi_fkey (
-              no_filing_cabinet,
-              no_laci,
-              no_folder,
-              daftar_bidang:id_bidang_fkey (nama_bidang)
-            )
-          `)
+                        id_arsip_aktif,
+                        nomor_berkas,
+                        kode_klasifikasi,
+                        uraian_informasi,
+                        jumlah,
+                        keterangan,
+                        user_id,
+                        created_at,
+                        tingkat_perkembangan,
+                        media_simpan,
+                        kurun_waktu,
+                        jangka_simpan,
+                        status_persetujuan,
+                        id_lokasi_fkey,
+                        users:user_id (nama),
+                        lokasi_penyimpanan:id_lokasi_fkey (
+                          no_filing_cabinet,
+                          no_laci,
+                          no_folder,
+                          daftar_bidang:id_bidang_fkey (nama_bidang)
+                        )
+                    `)
                     .eq('id_arsip_aktif', archiveId)
                     .single();
 
-                if (fetchError) {
-                    if (fetchError.code === 'PGRST116') {
+                if (berkasError) {
+                    if (berkasError.code === 'PGRST116') {
                         setError(`Arsip dengan ID "${archiveId}" tidak ditemukan.`);
                         toast.error(`Arsip tidak ditemukan.`);
                     } else {
-                        throw fetchError;
+                        throw berkasError;
                     }
-                } else if (data) {
-                    console.log("Data dari Supabase:", data); // Tambahkan log ini
-                    setArchiveData(data as unknown as ArsipAktifDetail); // Gunakan 'as unknown as' untuk sementara jika masih ada ketidakcocokan
+                    return; // Hentikan jika data berkas tidak ditemukan
+                }
+
+                if (berkasData) {
+                    setArchiveData(berkasData as unknown as ArsipAktifDetail);
+
+                    // Ambil jumlah item isi arsip
+                    const { count, error: countError } = await supabase
+                        .from('daftar_isi_arsip_aktif')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('id_berkas_induk_fkey', archiveId);
+
+                    if (countError) {
+                        console.warn("Gagal mengambil jumlah item arsip:", countError.message);
+                        setItemCount(0); // Atau null jika lebih sesuai
+                    } else {
+                        setItemCount(count ?? 0);
+                    }
+
+                    // NEW: Ambil daftar isi arsip aktif
+                    const { data: isiData, error: isiError } = await supabase
+                        .from('daftar_isi_arsip_aktif')
+                        .select(`
+                            id_isi_arsip,
+                            nomor_item,
+                            kode_klasifikasi,
+                            uraian_informasi,
+                            kurun_waktu,
+                            jumlah,
+                            keterangan,
+                            jangka_simpan,
+                            tingkat_perkembangan,
+                            media_simpan,
+                            file_url
+                        `)
+                        .eq('id_berkas_induk_fkey', archiveId)
+                        .order('nomor_item', { ascending: true }); // Urutkan berdasarkan nomor item
+
+                    if (isiError) {
+                        console.error("Gagal mengambil daftar isi arsip:", isiError.message);
+                        setIsiBerkasList([]); // Kosongkan daftar jika ada error
+                    } else {
+                        setIsiBerkasList(isiData as IsiBerkasDetailRow[]); // Set data daftar isi
+                    }
                 } else {
                     setError(`Arsip dengan ID "${archiveId}" tidak ditemukan.`);
                     toast.error(`Arsip tidak ditemukan.`);
@@ -192,11 +254,51 @@ export default function ArsipDetailPage() {
             } finally {
                 setLoading(false);
             }
-        };
-
+    }, [archiveId, supabase]); 
+    
+    useEffect(() => {
         fetchArchiveDetail();
-    }, [archiveId, supabase]);
+    }, [fetchArchiveDetail]); 
 
+    const handleDeleteItem = useCallback(async (id: string) => {
+        if (!window.confirm(`Apakah Anda yakin ingin menghapus item isi berkas ini?`)) return;
+        setLoading(true); 
+
+        const { error } = await supabase
+            .from('daftar_isi_arsip_aktif')
+            .delete()
+            .eq('id_isi_arsip', id);
+
+        if (error) {
+            toast.error(`Gagal menghapus item isi berkas.`);
+            console.error("Error deleting item:", error.message || error);
+            setLoading(false);
+        } else {
+            toast.success("Item isi berkas berhasil dihapus!");
+            fetchArchiveDetail(); 
+        }
+    }, [supabase, fetchArchiveDetail]); 
+
+    // Fungsi untuk menghapus berkas induk
+    const handleDeleteBerkas = useCallback(async () => {
+        if (!archiveData) return;
+        if (!window.confirm(`Apakah Anda yakin ingin menghapus berkas "${archiveData.uraian_informasi}"? Ini juga akan menghapus semua item isi berkas di dalamnya.`)) return;
+
+        setLoading(true); 
+
+        const { error } = await supabase
+            .from('arsip_aktif')
+            .delete()
+            .eq('id_arsip_aktif', archiveData.id_arsip_aktif);
+
+        if (error) {
+            toast.error(`Gagal menghapus berkas: ${error.message}`);
+            setLoading(false);
+        } else {
+            toast.success("Berkas berhasil dihapus!");
+            router.push('/arsip/daftar-aktif');
+        }
+    }, [supabase, archiveData, router]);
     const formatDate = (dateString: string | null | undefined, includeTime: boolean = false) => {
         if (!dateString) return 'N/A';
         try {
@@ -230,10 +332,12 @@ export default function ArsipDetailPage() {
                             <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             <span>Error! {error}</span>
                         </div>
-                        <button onClick={() => router.back()} className="mt-6 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm font-medium">
-                            Kembali
-                        </button>
-                    </div>
+                        {!isLoading && (
+                            <button onClick={() => router.push(getBackUrl())} className="mt-6 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm font-medium">
+                                Kembali
+                            </button>
+                        )}
+                        </div>
                 </div>
             </div>
         );
@@ -245,14 +349,19 @@ export default function ArsipDetailPage() {
                 <div className="max-w-7xl mx-auto w-full h-full flex flex-col">
                     <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col items-center justify-center p-6">
                         <p className="text-xl text-muted-foreground">Detail arsip tidak dapat dimuat.</p>
-                        <button onClick={() => router.back()} className="mt-6 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm font-medium">
-                            Kembali ke Daftar
-                        </button>
+                        {!isLoading && (
+                            <button onClick={() => router.push(getBackUrl())} className="mt-6 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm font-medium">
+                                Kembali ke Daftar
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
         );
     }
+
+    const showEdit =
+        user?.role === 'Pegawai';
 
     return (
         <div className="w-full h-full p-6">
@@ -260,50 +369,31 @@ export default function ArsipDetailPage() {
                 <div className="card-neon rounded-xl overflow-hidden flex-grow flex flex-col">
                     {/* Header */}
                     <div className="bg-primary/10 px-6 py-4 flex flex-wrap justify-between items-center gap-4 rounded-lg">
-                        <h1 className="text-2xl sm:text-3xl font-bold text-primary">Detail Arsip Aktif</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center gap-2">
+                            <FolderOpen size={30} /> Detail Berkas Arsip Aktif
+                        </h1>
                         <div className="flex gap-3">
                             <button
-                                onClick={() => router.back()}
-                                className="px-4 py-2.5 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 text-sm font-medium flex items-center gap-2"
+                                onClick={() => router.push(getBackUrl())}
+                                className="btn-secondary flex items-center gap-2"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-                                </svg>
-                                Kembali
+                                <ArrowLeft size={18} />
                             </button>
-                            <Link href={`/arsip/arsip-aktif?editId=${archiveId}`} className="px-4 py-2.5 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/90 text-sm font-medium flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                </svg>
-                                Edit
-                            </Link>
+                            {showEdit && (
+                                <Link href={`/arsip/arsip-aktif?editId=${archiveId}`} className="btn-primary flex items-center gap-2">
+                                    <Edit size={18} />
+                                </Link>
+                            )}
+                            <button
+                                onClick={handleDeleteBerkas}
+                                className="btn-destructive flex items-center gap-2"
+                            >
+                                <Trash2 size={18} />
+                            </button>
                         </div>
                     </div>
 
                     <div className="p-6 flex-grow overflow-y-auto">
-                        {archiveData.file_url && (
-                            <div className="mb-8 p-5 border border-border/40 rounded-lg bg-muted/30 dark:bg-muted/20">
-                                <h2 className="text-xl font-semibold text-foreground mb-3">File Arsip</h2>
-                                <Link href={archiveData.file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm font-medium">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                                    </svg>
-                                    Lihat/Unduh File
-                                </Link>
-                                <p className="text-sm text-muted-foreground mt-2">Nama file: {archiveData.file_url.split('/').pop()?.split('?')[0]}</p>
-                                <div className="mt-5 border border-border/40 rounded-lg overflow-hidden">
-                                    <h3 className="text-md font-semibold text-foreground p-3 bg-muted/50 dark:bg-muted/30 border-b border-border/40">Preview Dokumen</h3>
-                                    <iframe src={archiveData.file_url} className="w-full h-[70vh] bg-background" title="PDF Preview" />
-                                </div>
-                            </div>
-                        )}
-                        {!archiveData.file_url && (
-                            <div className="mb-8 p-5 border border-border/40 rounded-lg bg-muted/30 dark:bg-muted/20">
-                                <h2 className="text-xl font-semibold text-foreground mb-2">File Arsip</h2>
-                                <p className="text-muted-foreground">Tidak ada file yang terlampir untuk arsip ini.</p>
-                            </div>
-                        )}
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                             <div>
                                 <h3 className="text-lg font-semibold text-foreground mb-4">Informasi Dasar</h3>
@@ -312,6 +402,7 @@ export default function ArsipDetailPage() {
                                         { label: "No. Berkas", value: archiveData.nomor_berkas },
                                         { label: "Kode Klasifikasi", value: archiveData.kode_klasifikasi },
                                         { label: "Uraian Informasi", value: archiveData.uraian_informasi, preWrap: true },
+                                        { label: "Jumlah Arsip di Berkas", value: itemCount !== null ? `${itemCount} item` : 'Memuat...' },
                                         { label: "Jumlah", value: archiveData.jumlah },
                                         { label: "Keterangan", value: archiveData.keterangan, preWrap: true },
                                         { label: "Tingkat Perkembangan", value: archiveData.tingkat_perkembangan },
@@ -385,6 +476,65 @@ export default function ArsipDetailPage() {
                             </div>
                         </div>
                     </div>
+
+                    {/* NEW: Daftar Isi Berkas Section */}
+                    {isiBerkasList.length > 0 && (
+                        <div className="mt-8"> {/* Tambahkan margin-top untuk memisahkan dari bagian sebelumnya */}
+                            <h3 className="text-lg font-semibold text-foreground mb-4">Daftar Isi Berkas</h3>
+                            <div className="overflow-x-auto rounded-lg border border-border">
+                                <table className="min-w-full divide-y divide-border">
+                                    <thead>
+                                        <tr className="bg-muted text-muted-foreground">
+                                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">No. Item</th>
+                                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Kode Klasifikasi</th>
+                                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Uraian Informasi</th>
+                                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Kurun Waktu</th>
+                                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Jumlah</th>
+                                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Tingkat</th>
+                                            {/* <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Media</th> */}
+                                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Jangka Simpan</th>
+                                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Keterangan</th>
+                                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-card divide-y divide-border">
+                                        {isiBerkasList.map(item => (
+                                            <tr key={item.id_isi_arsip} className="hover:bg-muted transition-colors duration-150">
+                                                <td className="px-4 py-3 text-sm text-center">{item.nomor_item}</td>
+                                                <td className="px-4 py-3 text-sm text-center">{item.kode_klasifikasi}</td>
+                                                <td className="px-4 py-3 text-sm text-justify max-w-xs truncate" title={item.uraian_informasi}>{item.uraian_informasi}</td>
+                                                <td className="px-4 py-3 text-sm text-center">{item.kurun_waktu || '-'}</td>
+                                                <td className="px-4 py-3 text-sm text-center">{item.jumlah || '-'}</td>
+                                                <td className="px-4 py-3 text-sm text-center">{item.tingkat_perkembangan || '-'}</td>
+                                                {/* <td className="px-4 py-3 text-sm text-center">{item.media_simpan || '-'}</td> */}
+                                                <td className="px-4 py-3 text-sm text-center max-w-xs truncate" title={item.jangka_simpan || undefined}>{item.jangka_simpan || '-'}</td>
+                                                <td className="px-4 py-3 text-sm text-center max-w-xs truncate" title={item.keterangan || undefined}>{item.keterangan || '-'}</td>
+                                                <td className="px-4 py-3 text-sm text-center whitespace-nowrap">
+                                                    <Link href={`/arsip/arsip-aktif/detail-item/${item.id_isi_arsip}`} passHref>
+                                                        <button
+                                                            className="p-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary group transition-all duration-150 ease-in-out"
+                                                            title="Lihat Detail Item"
+                                                            aria-label="Lihat Detail Item Isi Arsip"
+                                                        >
+                                                            <Eye size={18} className="transform group-hover:scale-110 transition-transform duration-150" />
+                                                        </button>
+                                                    </Link>
+                                                    <button
+                                                        onClick={() => handleDeleteItem(item.id_isi_arsip)}
+                                                        className="p-1.5 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-destructive group ml-2 transition-all duration-150 ease-in-out"
+                                                        title="Hapus Item Isi Arsip"
+                                                        aria-label="Hapus Item Isi Arsip"
+                                                    >
+                                                        <Trash2 size={18} className="transform group-hover:scale-110 transition-transform duration-150" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

@@ -13,7 +13,7 @@ interface DaftarBidangType {
   kode_filing_cabinet: string | null;
 }
 
-interface UserProfile extends SupabaseUser {
+export interface UserProfile extends SupabaseUser {
   role?: string;
   nama?: string;
   nip?: string | null;

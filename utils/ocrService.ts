@@ -36,6 +36,26 @@ const cleanUraianInformasi = (text: string): string => {
   return cleanedText;
 };
 
+/**
+ * Membersihkan kode klasifikasi dengan menghapus bagian setelah slash pertama
+ * @param kode Kode klasifikasi yang akan dibersihkan
+ * @returns Kode klasifikasi yang sudah dibersihkan
+ */
+const cleanKodeKlasifikasi = (kode: string): string => {
+  // Hapus spasi berlebih
+  let cleanedKode = kode.trim();
+  
+  // Cari posisi slash pertama
+  const firstSlashIndex = cleanedKode.indexOf('/');
+  
+  // Jika ada slash, potong sebelum slash pertama
+  if (firstSlashIndex !== -1) {
+    cleanedKode = cleanedKode.substring(0, firstSlashIndex);
+  }
+  
+  return cleanedKode.trim();
+};
+
 /** 
  * Ekstrak data dari teks PDF dengan regex yang lebih akurat
  * Memperbaiki pengambilan kode klasifikasi dan menambahkan ekstraksi tanggal
@@ -69,7 +89,7 @@ export const extractDataFromPDF = (text: string): ExtractedData => {
   }
 
   // Regex untuk kode klasifikasi:
-  // 1. (?:\d{1,3}(?:\.\d{1,3})+) : Mencocokkan pola seperti 045.4 atau 000.1.1.1
+  // 1. (?:\d{1,3}(?:\.\d{1,3})+) : Mencocokkan pola seperti 045.4 (pola kode lama) atau 000.1.1.1 (pola kode baru)
   //    (?:\/[\w\.-]+)* : Bagian dengan garis miring setelahnya bersifat opsional untuk pola ini.
   // 2. | (?:\d+)(?:\/[\w\.-]+)+ : ATAU mencocokkan pola seperti 4/xxxxx/2025 (angka diikuti satu atau lebih bagian dengan garis miring).
   // Lookahead (?=\s*(?:\n|\r|Sifat|$)) : Memastikan kode diakhiri oleh baris baru, kata "Sifat", atau akhir teks.
@@ -79,7 +99,9 @@ export const extractDataFromPDF = (text: string): ExtractedData => {
   
   if (kodeMatch && kodeMatch[1]) {
     // Ambil kode yang cocok dan bersihkan dari spasi
-    kode_klasifikasi = kodeMatch[1].replace(/\s+/g, "").trim();
+    const rawKode = kodeMatch[1].replace(/\s+/g, "").trim();
+    // Bersihkan kode dengan menghapus bagian setelah slash pertama
+    kode_klasifikasi = cleanKodeKlasifikasi(rawKode);
   } else {
     // Cara alternatif jika regex di atas gagal
     const fallbackMatch = text.match(/Nomor\s*:\s*([^\n\r]+)/i);
@@ -95,9 +117,11 @@ export const extractDataFromPDF = (text: string): ExtractedData => {
       // Coba ekstrak dengan pola yang lebih sederhana
       const simpleKodeMatch = extractedText.match(/(\d+(?:\/[\w\.-]+)+)/);
       if (simpleKodeMatch) {
-        kode_klasifikasi = simpleKodeMatch[0].replace(/\s+/g, "").trim();
+        const rawKode = simpleKodeMatch[0].replace(/\s+/g, "").trim();
+        kode_klasifikasi = cleanKodeKlasifikasi(rawKode);
       } else {
-        kode_klasifikasi = extractedText.replace(/\s+/g, "").trim();
+        const rawKode = extractedText.replace(/\s+/g, "").trim();
+        kode_klasifikasi = cleanKodeKlasifikasi(rawKode);
       }
     }
   }

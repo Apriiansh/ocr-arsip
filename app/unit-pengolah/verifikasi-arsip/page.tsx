@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
 import { sendUserNotification } from "@/utils/notificationService";
-import { useAuth } from "@/context/AuthContext"; 
+import { useAuth } from "@/context/AuthContext";
 import { LoadingSkeleton } from "./components/VerifikasiArsipSkeleton";
-import { ChevronLeft, ChevronRight, Search, CheckCircle2, XCircle, FileCheck, Box, Filter } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, CheckCircle2, XCircle, FileCheck, Box, Filter, Eye } from "lucide-react"; // Tambah Eye
 import Loading from "../loading";
 
 interface Arsip {
@@ -40,8 +40,8 @@ export default function VerifikasiArsip() {
     const [arsipList, setArsipList] = useState<Arsip[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedArsipIds, setSelectedArsipIds] = useState<string[]>([]);
-    const { user, isLoading: isAuthLoading, error: authError } = useAuth(); 
-    const [dataLoading, setDataLoading] = useState(true); 
+    const { user, isLoading: isAuthLoading, error: authError } = useAuth();
+    const [dataLoading, setDataLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
     const [statusFilter, setStatusFilter] = useState("Menunggu");
@@ -167,7 +167,7 @@ export default function VerifikasiArsip() {
         // Jika semua pengecekan lolos, panggil fetchData
         fetchData(user.id_bidang_fkey, currentPage);
 
-    }, [user, isAuthLoading, authError, router, ALLOWED_ROLE, fetchData, currentPage]); // Tambahkan user, isAuthLoading, authError, fetchData, currentPage
+    }, [user, isAuthLoading, authError, router, ALLOWED_ROLE, fetchData, currentPage]);
 
     const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
@@ -188,7 +188,7 @@ export default function VerifikasiArsip() {
             return;
         }
 
-        if (!user || !user.id_bidang_fkey) { 
+        if (!user || !user.id_bidang_fkey) {
             toast.error("Sesi pengguna tidak valid atau ID bidang tidak ditemukan.");
             return;
         }
@@ -215,7 +215,7 @@ export default function VerifikasiArsip() {
         } else {
             toast.success(`Berhasil ${status.toLowerCase()} ${idsToProcess.length} arsip!`);
 
-            const currentAuthUserId = user?.id; 
+            const currentAuthUserId = user?.id;
 
             for (const arsip of arsipToUpdate) {
                 if (arsip.user_id && arsip.user_id !== currentAuthUserId) {
@@ -233,7 +233,7 @@ export default function VerifikasiArsip() {
                 }
             }
 
-            if (user.id_bidang_fkey) { 
+            if (user.id_bidang_fkey) {
                 fetchData(user.id_bidang_fkey, currentPage);
             }
             setSelectedArsipIds([]);
@@ -374,6 +374,7 @@ export default function VerifikasiArsip() {
                                                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tingkat Perk.</th>
                                                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lokasi</th>
                                                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                                                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">Aksi</th>
                                             </tr>
                                         </thead>
                                         <tbody className="bg-card divide-y divide-border">
@@ -408,13 +409,23 @@ export default function VerifikasiArsip() {
                                                     </td>
                                                     <td className="px-4 py-3 text-center">
                                                         <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-semibold leading-none ${arsip.status_persetujuan === "Disetujui"
-                                                                ? "bg-green-100 text-green-700 dark:bg-green-700/20 dark:text-green-400"
-                                                                : arsip.status_persetujuan === "Ditolak"
-                                                                    ? "bg-red-100 text-red-700 dark:bg-red-700/20 dark:text-red-400"
-                                                                    : "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/20 dark:text-yellow-400"
+                                                            ? "bg-green-100 text-green-700 dark:bg-green-700/20 dark:text-green-400"
+                                                            : arsip.status_persetujuan === "Ditolak"
+                                                                ? "bg-red-100 text-red-700 dark:bg-red-700/20 dark:text-red-400"
+                                                                : "bg-yellow-100 text-yellow-700 dark:bg-yellow-700/20 dark:text-yellow-400"
                                                             }`}>
                                                             {arsip.status_persetujuan}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <button
+                                                            className="p-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary group transition-all duration-150 ease-in-out"
+                                                            title="Lihat Detail Arsip"
+                                                            aria-label="Lihat Detail Arsip"
+                                                            onClick={() => router.push(`/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`)}
+                                                        >
+                                                            <Eye size={18} className="transform group-hover:scale-110 transition-transform duration-150" />
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -457,4 +468,3 @@ export default function VerifikasiArsip() {
         </div>
     );
 }
-            

@@ -349,7 +349,6 @@ export default function PemindahanArsip() {
                     keterangan,
                     tingkat_perkembangan,
                     media_simpan,
-                    file_url,
                     jangka_simpan,
                     status_persetujuan,
                     masa_retensi,
@@ -981,7 +980,6 @@ export default function PemindahanArsip() {
 					throw new Error(`Tingkat perkembangan wajib diisi untuk arsip ID ${arsip.id_arsip_aktif} (Kode: ${arsip.kode_klasifikasi}, No. Berkas Asli: ${arsip.nomor_berkas}).`);
 				}
 
-				// Hitung kurun_waktu_inaktif_mulai dan kurun_waktu_inaktif_berakhir
 				let kurunWaktuInaktifMulaiStr: string | null = null;
 				let kurunWaktuInaktifBerakhirStr: string | null = null;
 
@@ -1017,22 +1015,21 @@ export default function PemindahanArsip() {
 				}
 
 				finalArsipInaktifData.push({
-					nomor_berkas: newNomorBerkas, // Menggunakan nomor berkas baru
+					nomor_berkas: newNomorBerkas, 
 					kode_klasifikasi: arsip.kode_klasifikasi,
 					jenis_arsip: jenisArsip,
 					kurun_waktu: arsip.kurun_waktu,
 					jangka_simpan: periodeInaktifDisplay,
-					tingkat_perkembangan: tingkatPerkembangan, // Menggunakan tingkat perkembangan yang sudah diproses
+					tingkat_perkembangan: tingkatPerkembangan, 
 					jumlah: arsip.jumlah,
 					keterangan: arsip.keterangan,
-					nomor_definitif_folder_dan_boks: nomorBoksArsip, // Menggunakan nomor boks spesifik arsip
+					nomor_definitif_folder_dan_boks: nomorBoksArsip, 
 					lokasi_simpan: pemindahanInfo.lokasi_simpan,
 					masa_retensi: masaRetensiInaktifVal,
 					nasib_akhir: nasibAkhir,
 					kategori_arsip: pemindahanInfo.kategori_arsip,
 					id_arsip_aktif: arsip.id_arsip_aktif,
 					tanggal_pindah: new Date().toISOString().split('T')[0],
-					file_url: arsip.file_url,
 					user_id: user.id, // Gunakan user.id dari context
 					status_persetujuan: "Menunggu",
 					id_berita_acara: beritaAcaraId,
@@ -1051,7 +1048,7 @@ export default function PemindahanArsip() {
 				throw new Error("Gagal membuat arsip inaktif atau mengambil ID mereka.");
 			}
 
-			// 4. Create links in pemindahan_arsip_link table
+			// 4.1 Create links in pemindahan_arsip_link table
 			const pemindahanLinkData = newInactiveArsip.map(inaktif => ({
 				id_arsip_aktif_fkey: inaktif.id_arsip_aktif, // This was part of arsipInaktifData and returned by select()
 				id_arsip_inaktif_fkey: inaktif.id_arsip_inaktif,
@@ -1068,6 +1065,33 @@ export default function PemindahanArsip() {
 				console.error("Gagal membuat link pemindahan arsip:", linkError);
 				toast.warn("Pemindahan arsip inti berhasil, namun gagal mencatat link pemindahan.");
 				// Depending on business logic, you might want to throw linkError here or handle it differently.
+			}
+
+			// 4.2 Insert ke pemindahan_isi_berkas
+			for (const inaktif of newInactiveArsip) {
+				// Ambil semua isi dari daftar_isi_arsip_aktif untuk arsip aktif ini
+				const { data: isiBerkas, error: isiError } = await supabase
+					.from("daftar_isi_arsip_aktif")
+					.select("id_isi_arsip")
+					.eq("id_berkas_induk_fkey", inaktif.id_arsip_aktif);
+
+				if (isiError) {
+					console.error("Gagal mengambil isi berkas:", isiError);
+					continue; // Lanjutkan ke arsip berikutnya
+				}
+				if (isiBerkas && isiBerkas.length > 0) {
+					const isiLinkData = isiBerkas.map((isi: any) => ({
+						id_isi_arsip: isi.id_isi_arsip,
+						id_arsip_inaktif: inaktif.id_arsip_inaktif,
+						id_pemindahan_process: process_id,
+					}));
+					const { error: linkIsiError } = await supabase
+						.from("pemindahan_isi_berkas")
+						.insert(isiLinkData);
+					if (linkIsiError) {
+						console.error("Gagal insert pemindahan_isi_berkas:", linkIsiError);
+					}
+				}
 			}
 
 			// Update process status to completed

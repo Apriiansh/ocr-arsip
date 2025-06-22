@@ -9,7 +9,6 @@ export interface ArsipAktif {
     jangka_simpan: string; // String periode aktif "DD-MM-YYYY s.d. DD-MM-YYYY"
     tingkat_perkembangan: string;
     media_simpan: string;
-    file_url: string;
     keterangan: string;
     is_retention_expired?: boolean;
     retensi_data?: {
@@ -23,6 +22,35 @@ export interface ArsipAktif {
         no_laci: string;
         no_folder: string;
     };
+}
+
+export interface IsiArsipAktif {
+    id_isi_arsip: string;
+    id_berkas_induk_fkey: string;
+    nomor_item: string;
+    kode_klasifikasi: string;
+    uraian_informasi: string;
+    tanggal_mulai?: string;
+    tanggal_berakhir?: string;
+    masa_retensi?: number;
+    kurun_waktu?: string;
+    jangka_simpan?: string;
+    jumlah: number;
+    keterangan: string;
+    tingkat_perkembangan?: string;
+    media_simpan?: string;
+    file_url?: string;
+    user_id?: string;
+    created_at?: string;
+    akses?: string;
+}
+
+export interface PemindahanIsiBerkas {
+    id_pemindahan_isi: number;
+    id_isi_arsip: string;
+    id_arsip_inaktif: string;
+    id_pemindahan_process: string;
+    tanggal_pindah?: string;
 }
 
 export interface ArsipInaktif {
@@ -42,7 +70,6 @@ export interface ArsipInaktif {
     kategori_arsip: string;
     id_arsip_aktif: string;
     tanggal_pindah: string;
-    file_url: string;
     user_id: string;
     created_at: string;
     status_persetujuan: "Menunggu" | "Disetujui" | "Ditolak";

@@ -4,12 +4,20 @@ import { BIDANG_CABINET_MAP, LACI_CAPACITY } from "@/app/arsip/arsip-aktif/const
 
 interface LocationParams {
   userNamaBidang: string | null;
-  kodeKlasifikasi: string;
+  kodeKlasifikasi: string; // Still needed to determine initial drawer if LACI_CAPACITY is based on classification
   userIdBidang: number | null;
+  nomorBerkasInput?: number | null; // Add file number from form input
   editId?: string | null;
 }
 
-export function useArchiveLocation({ userNamaBidang, kodeKlasifikasi, userIdBidang, editId }: LocationParams) {
+// Define a specific type for the expected result of the select query with join and single()
+interface BerkasLocationData {
+  lokasi_penyimpanan: {
+    no_laci: string;
+    no_folder: string;
+  } | null; // lokasi_penyimpanan might be null if the join doesn't find a match
+}
+export function useArchiveLocation({ userNamaBidang, kodeKlasifikasi, userIdBidang, nomorBerkasInput, editId }: LocationParams) {
   const supabase = createClient();
   const [location, setLocation] = useState({
     no_filing_cabinet: "",
@@ -19,7 +27,8 @@ export function useArchiveLocation({ userNamaBidang, kodeKlasifikasi, userIdBida
 
   useEffect(() => {
     const calculate = async () => {
-      if (!userNamaBidang || !userIdBidang || !kodeKlasifikasi) {
+      // kodeKlasifikasi might not be crucial for new folder_no, but could be for drawer
+      if (!userNamaBidang || !userIdBidang) {
         setLocation({ no_filing_cabinet: "", no_laci: "", no_folder: "" });
         return;
       }
@@ -35,56 +44,64 @@ export function useArchiveLocation({ userNamaBidang, kodeKlasifikasi, userIdBida
         .select("id_arsip_aktif_fkey");
       const idsToExclude = pemindahanLinks?.map(link => link.id_arsip_aktif_fkey).filter(id => id != null) || [];
 
-      // Ambil semua arsip aktif (belum dipindahkan) pada bidang & kode klasifikasi
+      // Calculate total number of files (arsip_aktif) in the user's field
+      // to determine the drawer.
       let query = supabase
         .from("arsip_aktif")
-        .select("id_arsip_aktif, kode_klasifikasi, lokasi_penyimpanan!inner(id_bidang_fkey)")
-        .eq("lokasi_penyimpanan.id_bidang_fkey", userIdBidang)
-        .ilike("kode_klasifikasi", `${kodeKlasifikasi}%`);
+        .select("id_arsip_aktif, lokasi_penyimpanan!inner(id_bidang_fkey)", { count: "exact" })
+        .eq("lokasi_penyimpanan.id_bidang_fkey", userIdBidang);
+        // The .is("file_url", null) filter was removed because 'file_url' is no longer in the 'arsip_aktif' table.
 
       if (idsToExclude.length > 0) {
         query = query.not("id_arsip_aktif", "in", `(${idsToExclude.join(",")})`);
       }
+      // If in edit mode, do not count the edited item in the total count calculation
+      if (editId) {
+        query = query.not("id_arsip_aktif", "eq", editId);
+      }
 
-      const { data: arsipList } = await query;
-      const jumlahArsip = arsipList ? arsipList.length : 0;
+      const { count: totalBerkasDiBidang } = await query;
+      const jumlahBerkasSaatIniDiBidang = totalBerkasDiBidang || 0;
 
-      // Hitung laci
-      let noLaci = (Math.floor(jumlahArsip / LACI_CAPACITY) + 1).toString();
+      // Calculate drawer
+      // If editId exists, we need to retrieve the drawer number from the edited item, not recalculate.
+      // For new entries, we calculate based on jumlahBerkasSaatIniDiBidang.
+      let noLaci: string;
+      let noFolder: string;
+
+      if (editId) {
+        const { data: currentArsip } = await supabase
+          .from("arsip_aktif")
+          .select("lokasi_penyimpanan!inner(no_laci, no_folder)")
+          .eq("id_arsip_aktif", editId)
+          .single<BerkasLocationData>(); // Explicitly type the result
+        noLaci = currentArsip?.lokasi_penyimpanan?.no_laci || "1";
+        noFolder = currentArsip?.lokasi_penyimpanan?.no_folder || "1";
+      } else {
+        // For new entries
+        noLaci = (Math.floor(jumlahBerkasSaatIniDiBidang / LACI_CAPACITY) + 1).toString();
+
+        // Set no_folder equal to the input nomor_berkas for new entries
+        if (nomorBerkasInput && nomorBerkasInput > 0) {
+          noFolder = nomorBerkasInput.toString();
+        } else {
+          // Fallback if nomorBerkasInput is invalid, use previous logic (number of files in drawer + 1)
+          let berkasInLaciQuery = supabase
+            .from("arsip_aktif")
+            .select("id_arsip_aktif, lokasi_penyimpanan!inner()", { count: "exact" }) // Added join
+            .eq("lokasi_penyimpanan.id_bidang_fkey", userIdBidang)
+            .eq("lokasi_penyimpanan.no_laci", noLaci);
+
+          if (idsToExclude.length > 0) {
+            berkasInLaciQuery = berkasInLaciQuery.not("id_arsip_aktif", "in", `(${idsToExclude.join(",")})`);
+          }
+          const { count: jumlahBerkasDiLaci } = await berkasInLaciQuery;
+          noFolder = ((jumlahBerkasDiLaci || 0) + 1).toString();
+        }
+      }
+
+      // Ensure no_laci does not exceed 4 (max drawer limit)
       if (parseInt(noLaci) > 4) noLaci = "4";
-      let noFolder = "1";
-
-      // Hitung folder dalam laci tsb (berdasarkan kode klasifikasi utama)
-      let arsipInLaciQuery = supabase
-        .from("arsip_aktif")
-        .select("id_arsip_aktif, kode_klasifikasi, lokasi_penyimpanan!inner(no_laci, id_bidang_fkey)")
-        .eq("lokasi_penyimpanan.id_bidang_fkey", userIdBidang)
-        .eq("lokasi_penyimpanan.no_laci", noLaci);
-
-      if (idsToExclude.length > 0) {
-        arsipInLaciQuery = arsipInLaciQuery.not("id_arsip_aktif", "in", `(${idsToExclude.join(",")})`);
-      }
-
-      const { data: arsipInLaciList } = await arsipInLaciQuery;
-      const allKlasifikasiUtamaInLaci = new Set<string>();
-      if (arsipInLaciList) {
-        arsipInLaciList.forEach(arsip => {
-          if (editId && `${arsip.id_arsip_aktif}` === `${editId}`) return;
-          const utama = arsip.kode_klasifikasi.split("/")[0].trim();
-          allKlasifikasiUtamaInLaci.add(utama);
-        });
-      }
-      const inputUtama = kodeKlasifikasi.split("/")[0].trim();
-      allKlasifikasiUtamaInLaci.add(inputUtama);
-
-      console.log("allKlasifikasiUtamaInLaci", allKlasifikasiUtamaInLaci);
-
-      if (allKlasifikasiUtamaInLaci.size > 0) {
-        const sorted = Array.from(allKlasifikasiUtamaInLaci).sort();
-        const idx = sorted.indexOf(inputUtama);
-        console.log("sorted:", sorted, "idx input:", idx);
-        if (idx !== -1) noFolder = (idx + 1).toString();
-      }
 
       setLocation({
         no_filing_cabinet: cabinetPrefix,
@@ -94,7 +111,7 @@ export function useArchiveLocation({ userNamaBidang, kodeKlasifikasi, userIdBida
     };
     calculate();
     // eslint-disable-next-line
-  }, [userNamaBidang, kodeKlasifikasi, userIdBidang, editId]);
+  }, [userNamaBidang, kodeKlasifikasi, userIdBidang, nomorBerkasInput, editId, supabase]); // Add supabase to dependency array if not already there
 
   return location;
 }
