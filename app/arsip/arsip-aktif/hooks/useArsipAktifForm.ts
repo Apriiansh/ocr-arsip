@@ -571,14 +571,14 @@ useEffect(() => {
         const kodeKlasifikasiFormatted = kodeLengkap.replace(/\//g, '-');
         const fileName = `${kodeKlasifikasiFormatted}_${timestamp}.${fileExt}`;
         const filePath = `arsip_aktif/${fileName}`;
-        const { error: uploadError } = await supabase.storage.from('isi_arsip').upload(filePath, pdfFile);
+        const { error: uploadError } = await supabase.storage.from('arsip').upload(filePath, pdfFile);
 
         if (uploadError) {
           toast.warning('Gagal mengunggah file.');
           setSubmitting(false);
           return;
         }
-        fileUrl = supabase.storage.from('isi_arsip').getPublicUrl(filePath).data.publicUrl; // Use consistent bucket name
+        fileUrl = supabase.storage.from('arsip').getPublicUrl(filePath).data.publicUrl; // Use consistent bucket name
       } else if (editId && formData.file_url) {
         fileUrl = formData.file_url;
       }
