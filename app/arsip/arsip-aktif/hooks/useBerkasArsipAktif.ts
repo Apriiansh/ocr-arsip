@@ -133,8 +133,12 @@ export function useBerkasArsipAktif(enabled: boolean, user: UserProfile | null =
       .single();
 
     if (error || !data) {
-      toast.error("Gagal memuat data berkas untuk diedit.");
-      router.push("/arsip/arsip-aktif/daftar-aktif"); 
+      // const errorMessage = error
+      //   ? `Gagal memuat data berkas: ${error.message}`
+      //   : "Data berkas untuk diedit tidak ditemukan.";
+      // console.error("Error loading archive data for edit:", error);
+      // toast.error(errorMessage);
+      // router.push("/arsip/arsip-aktif/daftar-aktif"); // Dihapus agar tidak redirect
       return;
     }
 
@@ -470,6 +474,7 @@ export function useBerkasArsipAktif(enabled: boolean, user: UserProfile | null =
         keterangan: formData.keterangan,
         tingkat_perkembangan: formData.tingkat_perkembangan,
         media_simpan: formData.media_simpan,
+        akses: formData.akses,
         user_id: user.id,
         nomor_berkas: finalNomorBerkas,
         id_lokasi_fkey: idLokasiFkey,

@@ -40,6 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [isTabVisible, setIsTabVisible] = useState(true);
 
   const supabase = createClient();
   const router = useRouter();
@@ -49,6 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const mountedRef = useRef(true);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const authListenerRef = useRef<any>(null);
+  const visibilityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const SIGN_IN_PATH = "/sign-in";
   const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/user-manual"];
@@ -86,81 +88,158 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [retryCount, clearLoadingTimeout]);
 
+  // Enhanced fetchUserDetails dengan retry mechanism
   const fetchUserDetails = useCallback(async (authUser: SupabaseUser | null): Promise<UserProfile | null> => {
     if (!authUser || !mountedRef.current) return null;
 
-    try {
-      // Tambahkan timeout untuk query database
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Database query timeout')), 5000)
-      );
+    let attempts = 0;
+    const maxAttempts = 2;
 
-      const queryPromise = supabase
-        .from("users")
-        .select(`
-          nama, 
-          nip, 
-          jabatan, 
-          pangkat, 
-          role, 
-          id_bidang_fkey, 
-          daftar_bidang:id_bidang_fkey ( 
-            id_bidang, 
-            nama_bidang, 
-            kode_filing_cabinet 
-          )
-        `)
-        .eq("user_id", authUser.id)
-        .single();
+    while (attempts < maxAttempts) {
+      try {
+        // Increase timeout for better reliability
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database query timeout')), 10000) // 10 seconds
+        );
 
-      const { data: userData, error: userDbError } = await Promise.race([
-        queryPromise,
-        timeoutPromise
-      ]) as any;
+        const queryPromise = supabase
+          .from("users")
+          .select(`
+            nama, 
+            nip, 
+            jabatan, 
+            pangkat, 
+            role, 
+            id_bidang_fkey, 
+            daftar_bidang:id_bidang_fkey ( 
+              id_bidang, 
+              nama_bidang, 
+              kode_filing_cabinet 
+            )
+          `)
+          .eq("user_id", authUser.id)
+          .single();
 
-      if (!mountedRef.current) return null;
+        const { data: userData, error: userDbError } = await Promise.race([
+          queryPromise,
+          timeoutPromise
+        ]) as any;
 
-      if (userDbError) {
-        console.error("AuthContext: Error fetching user details:", userDbError.message);
+        if (!mountedRef.current) return null;
 
-        // Jika error karena user tidak ditemukan, logout
-        if (userDbError.code === 'PGRST116') {
-          console.warn("AuthContext: User not found in database. Signing out...");
-          await supabase.auth.signOut();
+        if (userDbError) {
+          console.error("AuthContext: Error fetching user details:", userDbError.message);
+
+          // Jika error karena user tidak ditemukan, logout
+          if (userDbError.code === 'PGRST116') {
+            console.warn("AuthContext: User not found in database. Signing out...");
+            await supabase.auth.signOut();
+            return null;
+          }
+
+          // Retry on network errors
+          if (attempts < maxAttempts - 1 && (
+            userDbError.message.includes('timeout') || 
+            userDbError.message.includes('network') ||
+            userDbError.message.includes('connection')
+          )) {
+            attempts++;
+            console.log(`AuthContext: Retrying fetchUserDetails (attempt ${attempts + 1}/${maxAttempts})`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+            continue;
+          }
+
+          setError(`Gagal mengambil detail pengguna: ${userDbError.message}`);
+          throw userDbError;
+        }
+
+        if (!userData) {
+          setError("Data pengguna tidak ditemukan.");
           return null;
         }
 
-        setError(`Gagal mengambil detail pengguna: ${userDbError.message}`);
-        throw userDbError;
-      }
+        // Handle daftar_bidang data
+        const daftarBidangData = Array.isArray(userData.daftar_bidang)
+          ? userData.daftar_bidang[0]
+          : userData.daftar_bidang;
 
-      if (!userData) {
-        setError("Data pengguna tidak ditemukan.");
+        return {
+          ...authUser,
+          ...userData,
+          daftar_bidang: daftarBidangData
+        };
+
+      } catch (e: any) {
+        if (!mountedRef.current) return null;
+
+        if (attempts < maxAttempts - 1) {
+          attempts++;
+          console.log(`AuthContext: Retrying fetchUserDetails after error (attempt ${attempts + 1}/${maxAttempts}):`, e.message);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+
+        console.error("AuthContext: Error in fetchUserDetails:", e.message);
+        setError(`Terjadi kesalahan: ${e.message}`);
         return null;
       }
-
-      // Handle daftar_bidang data
-      const daftarBidangData = Array.isArray(userData.daftar_bidang)
-        ? userData.daftar_bidang[0]
-        : userData.daftar_bidang;
-
-      return {
-        ...authUser,
-        ...userData,
-        daftar_bidang: daftarBidangData
-      };
-
-    } catch (e: any) {
-      if (!mountedRef.current) return null;
-
-      console.error("AuthContext: Error in fetchUserDetails:", e.message);
-      setError(`Terjadi kesalahan: ${e.message}`);
-      return null;
     }
+
+    return null;
   }, [supabase]);
 
+  // Helper untuk handle tab visibility changes
+  const handleVisibilityChange = useCallback(() => {
+    const isVisible = !document.hidden;
+    setIsTabVisible(isVisible);
+    
+    if (isVisible) {
+      console.log("AuthContext: Tab became visible, checking auth state...");
+      
+      // Clear any pending visibility timeout
+      if (visibilityTimeoutRef.current) {
+        clearTimeout(visibilityTimeoutRef.current);
+        visibilityTimeoutRef.current = null;
+      }
+      
+      // Re-check authentication after user returns to tab
+      // Delay sedikit untuk memastikan browser sudah stabil
+      setTimeout(() => {
+        if (mountedRef.current && !PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+          initializeAuth();
+        }
+      }, 500);
+    } else {
+      console.log("AuthContext: Tab became hidden");
+      
+      // Set timeout untuk mencegah logout saat tab hidden terlalu lama
+      visibilityTimeoutRef.current = setTimeout(() => {
+        if (!mountedRef.current || isTabVisible) return;
+        
+        console.log("AuthContext: Tab hidden for too long, checking session...");
+        // Only check session, don't force logout
+        supabase.auth.getSession().then(({ data: { session }, error }) => {
+          if (error || !session) {
+            console.log("AuthContext: No valid session found while tab was hidden");
+            setUser(null);
+            if (!PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+              router.push(SIGN_IN_PATH);
+            }
+          }
+        });
+      }, 30000); // 30 seconds timeout
+    }
+  }, [isTabVisible, pathname, router, supabase]);
+
+  // Enhanced handleAuthStateChange dengan tab visibility check
   const handleAuthStateChange = useCallback(async (event: string, session: any) => {
     if (!mountedRef.current) return;
+    
+    // Skip auth state changes when tab is hidden untuk mencegah false logout
+    if (!isTabVisible && event !== 'INITIAL_SESSION') {
+      console.log("AuthContext: Ignoring auth state change while tab is hidden:", event);
+      return;
+    }
 
     try {
       // Reset error saat ada perubahan auth state, kecuali pada halaman publik
@@ -187,10 +266,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
       } else {
-        setUser(null);
-        // Redirect jika tidak ada sesi dan bukan halaman publik
-        if (!PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
-          router.push(SIGN_IN_PATH);
+        // Only redirect if tab is visible to prevent false logouts
+        if (isTabVisible) {
+          setUser(null);
+          // Redirect jika tidak ada sesi dan bukan halaman publik
+          if (!PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+            router.push(SIGN_IN_PATH);
+          }
         }
       }
     } catch (error) {
@@ -203,7 +285,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoadingWithTimeout(false);
       }
     }
-  }, [fetchUserDetails, pathname, router, setLoadingWithTimeout]);
+  }, [fetchUserDetails, pathname, router, setLoadingWithTimeout, isTabVisible]);
 
   const initializeAuth = useCallback(async () => {
     if (!mountedRef.current) return;
@@ -221,9 +303,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
 
     try {
-      // Get initial user dengan timeout
+      // Get initial user dengan timeout yang lebih panjang
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Auth initialization timeout')), 5000)
+        setTimeout(() => reject(new Error('Auth initialization timeout')), 10000) // Increased to 10 seconds
       );
 
       const authPromise = supabase.auth.getUser();
@@ -261,7 +343,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setError(`Gagal menginisialisasi autentikasi: ${error.message}`);
       setLoadingWithTimeout(false);
     }
-  }, [supabase, handleAuthStateChange, setLoadingWithTimeout]);
+  }, [supabase, handleAuthStateChange, setLoadingWithTimeout, pathname]);
 
   const retry = useCallback(async () => {
     if (retryCount >= MAX_RETRY_ATTEMPTS) {
@@ -293,6 +375,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
   }, [supabase, handleAuthStateChange, initializeAuth, clearLoadingTimeout]);
+
+  // Visibility handling effect
+  useEffect(() => {
+    // Add visibility change listener
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Add beforeunload listener untuk cleanup
+    const handleBeforeUnload = () => {
+      if (visibilityTimeoutRef.current) {
+        clearTimeout(visibilityTimeoutRef.current);
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      
+      if (visibilityTimeoutRef.current) {
+        clearTimeout(visibilityTimeoutRef.current);
+        visibilityTimeoutRef.current = null;
+      }
+    };
+  }, [handleVisibilityChange]);
 
   // Cleanup effect
   useEffect(() => {

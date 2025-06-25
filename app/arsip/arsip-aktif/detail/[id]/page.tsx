@@ -21,6 +21,7 @@ interface ArsipAktifDetail {
     media_simpan: string | null;
     kurun_waktu: string | null;
     jangka_simpan: string | null; 
+    akses: string | null;
     status_persetujuan: string | null;
     id_lokasi_fkey: string | null;
     users: { 
@@ -179,6 +180,7 @@ export default function ArsipDetailPage() {
                         media_simpan,
                         kurun_waktu,
                         jangka_simpan,
+                        akses,
                         status_persetujuan,
                         id_lokasi_fkey,
                         users:user_id (nama),
@@ -405,6 +407,7 @@ export default function ArsipDetailPage() {
                                         { label: "Jumlah Arsip di Berkas", value: itemCount !== null ? `${itemCount} item` : 'Memuat...' },
                                         { label: "Jumlah", value: archiveData.jumlah },
                                         { label: "Keterangan", value: archiveData.keterangan, preWrap: true },
+                                        { label: "Akses", value: archiveData.akses },
                                         { label: "Tingkat Perkembangan", value: archiveData.tingkat_perkembangan },
                                         { label: "Media Simpan", value: archiveData.media_simpan },
                                     ].map(item => (

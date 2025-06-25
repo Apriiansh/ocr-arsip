@@ -350,6 +350,10 @@ export default function VisualisasiFiling() {
                           .map(([folderNo, folder]) => {
                             const folderKey = `${cabinetNo}-${laciNo}-${folderNo}`;
                             const isFolderOpen = expandedFolders.has(folderKey);
+                            
+                            // Urutkan arsip berdasarkan nomor_berkas (number)
+                            const sortedArsip = [...folder.arsip_list].sort((a, b) => a.nomor_berkas - b.nomor_berkas);
+                            
                             return (
                               <div key={folderNo} className="mb-3 border-b pb-2 last:border-b-0 last:pb-0">
                                 <div
@@ -375,8 +379,8 @@ export default function VisualisasiFiling() {
                                   }}
                                 >
                                   {isFolderOpen && (
-                                    folder.arsip_list.length > 0 ? (
-                                      folder.arsip_list.map((arsip) => (
+                                    sortedArsip.length > 0 ? (
+                                      sortedArsip.map((arsip) => (
                                         <div
                                           key={arsip.id_arsip_aktif}
                                           className="flex items-center justify-between gap-1 py-1 px-2 hover:bg-muted/20 rounded transition"
@@ -389,19 +393,6 @@ export default function VisualisasiFiling() {
                                             <span className="text-xs text-muted-foreground truncate max-w-[140px]">{arsip.uraian_informasi}</span>
                                           </div>
                                           <div className="flex items-center gap-1 flex-shrink-0">
-                                            {/* <span
-                                              className={`px-2 py-1 text-xs font-medium   rounded-full ${
-                                                arsip.status_persetujuan === "Disetujui"
-                                                  ? "bg-green-100 text-green-700"
-                                                  : arsip.status_persetujuan === "Ditolak"
-                                                  ? "bg-red-100 text-red-700"
-                                                  : arsip.status_persetujuan === "Menunggu"
-                                                  ? "bg-yellow-100 text-yellow-700"
-                                                  : "bg-gray-100 text-gray-700"
-                                              }`}
-                                            >
-                                              {arsip.status_persetujuan || "N/A"}
-                                            </span> */}
                                             <button
                                               onClick={() => router.push(`/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`)}
                                               className="p-1 rounded text-blue-600 hover:bg-blue-50 transition"

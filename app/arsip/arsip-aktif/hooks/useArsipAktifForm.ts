@@ -135,8 +135,11 @@ useEffect(() => {
       .single();
 
     if (error || !data) {
-      toast.error("Gagal memuat data isi arsip untuk diedit.");
-      router.push("/arsip/arsip-aktif");
+    //  const errorMessage = error
+    //     ? `Gagal memuat data isi arsip: ${error.message}`
+    //     : "Data isi arsip untuk diedit tidak ditemukan.";
+    //   console.error("Error loading item archive data for edit:", error);
+    //   toast.error(errorMessage);
       return;
     }
 
