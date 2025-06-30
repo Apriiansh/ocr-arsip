@@ -1,15 +1,15 @@
 "use client";
 
 import React, { Suspense, useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation"; // Tambahkan useSearchParams
+import { useSearchParams, useRouter } from "next/navigation";
 import ArsipAktifFormUI from "./components/ArsipAktifFormUI";
 import BerkasArsipAktifFormUI from "./components/BerkasArsipAktifFormUi";
 import Loading from "./loading";
 import { File, Folder, RefreshCw } from "lucide-react";
 import { useArsipAktifForm } from "./hooks/useArsipAktifForm";
 import { useBerkasArsipAktif } from "./hooks/useBerkasArsipAktif";
-import { useAuth } from "@/context/AuthContext"; // Tambahkan impor useAuth
-import { toast } from "react-toastify"; // Tambahkan jika belum ada, untuk notifikasi
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "react-toastify"; 
 
 type FormMode = "arsip" | "berkas";
 
@@ -18,9 +18,8 @@ function ArsipAktifContent() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { user, isLoading: isAuthLoading, error: authError } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams(); // Hook untuk membaca URL query params
+  const searchParams = useSearchParams(); 
 
-  // Load saved mode from localStorage on mount
   useEffect(() => {
     const savedMode = localStorage.getItem('selectedFormMode') as FormMode;
     if (savedMode && (savedMode === 'arsip' || savedMode === 'berkas')) {
@@ -28,39 +27,31 @@ function ArsipAktifContent() {
     }
   }, []);
 
-  // Cek apakah ada 'editId' di URL saat komponen dimuat
   useEffect(() => {
     const editId = searchParams.get('editId');
     const modeFromUrl = searchParams.get('formMode') as FormMode;
 
     if (editId) {
       if (modeFromUrl === 'arsip') {
-        // Jika ada editId dan mode 'arsip', paksa mode ke 'arsip' untuk mengedit isi berkas.
         setFormMode('arsip');
       } else {
-        // Jika tidak ada mode spesifik, default ke edit 'berkas' (induk).
         setFormMode('berkas');
       }
     }
   }, [searchParams]);
 
-  // Panggil hook form. Logika autentikasi dan role check ada di level halaman.
-  // Parameter 'enabled' tidak lagi diperlukan untuk auth check di dalam hook.
-  // Kita akan mengontrol rendering form berdasarkan auth state di sini.
   const arsipFormLogicHook = useArsipAktifForm(formMode === "arsip" && !!user, user);
   const berkasFormLogicHook = useBerkasArsipAktif(formMode === "berkas" && !!user, user);
 
   useEffect(() => {
     if (!isAuthLoading && !user) {
-      // AuthContext seharusnya sudah redirect, ini sebagai fallback atau notifikasi
       toast.warn("Sesi tidak ditemukan, harap login kembali.");
       router.push("/sign-in");
     } else if (user && user.role !== "Pegawai") {
       toast.error("Anda tidak memiliki izin untuk mengakses halaman ini.");
-      router.push("/"); // atau halaman default untuk role tersebut
+      router.push("/"); 
     } else if (user && (!user.id_bidang_fkey || !user.daftar_bidang?.nama_bidang)) {
       toast.error("Data bidang pengguna tidak lengkap. Harap hubungi administrator.");
-      // Pertimbangkan untuk tidak merender form atau menampilkan pesan error spesifik
     }
   }, [user, isAuthLoading, router]);
 

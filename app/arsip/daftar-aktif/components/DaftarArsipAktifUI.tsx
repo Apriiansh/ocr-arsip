@@ -267,7 +267,7 @@ export function DaftarArsipAktifUI({
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-sm text-center whitespace-nowrap">
-                                                <Link href={`/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`} passHref>
+                                                <Link href={`/arsip/detail/${arsip.id_arsip_aktif}`} passHref>
                                                     <button
                                                         className="p-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary group transition-all duration-150 ease-in-out"
                                                         title="Lihat Detail"
@@ -301,7 +301,7 @@ export function DaftarArsipAktifUI({
                                             <td className="px-4 py-3 text-sm text-left max-w-xs truncate" title={item.jangka_simpan || undefined}>{item.jangka_simpan || '-'}</td>
                                             <td className="px-4 py-3 text-sm text-left max-w-xs truncate" title={item.keterangan || undefined}>{item.keterangan || '-'}</td>
                                             <td className="px-4 py-3 text-sm text-center whitespace-nowrap">
-                                                <Link href={`/arsip/arsip-aktif/detail-item/${item.id_isi_arsip}`} passHref>
+                                                <Link href={`/arsip/detail-item/${item.id_isi_arsip}`} passHref>
                                                     <button
                                                         className="p-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary group transition-all duration-150 ease-in-out"
                                                         title="Lihat Detail Item"

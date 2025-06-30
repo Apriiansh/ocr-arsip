@@ -298,7 +298,7 @@ export default function ArsipDetailPage() {
             setLoading(false);
         } else {
             toast.success("Berkas berhasil dihapus!");
-            router.push('/arsip/daftar-aktif');
+            router.push('/daftar-aktif');
         }
     }, [supabase, archiveData, router]);
     const formatDate = (dateString: string | null | undefined, includeTime: boolean = false) => {
@@ -398,8 +398,8 @@ export default function ArsipDetailPage() {
                     <div className="p-6 flex-grow overflow-y-auto">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                             <div>
-                                <h3 className="text-lg font-semibold text-foreground mb-4">Informasi Dasar</h3>
-                                <dl className="space-y-4 text-sm">
+                                <h3 className="text-xl font-semibold text-foreground mb-4">Informasi Dasar</h3>
+                                <dl className="space-y-4 text-xl">
                                     {[
                                         { label: "No. Berkas", value: archiveData.nomor_berkas },
                                         { label: "Kode Klasifikasi", value: archiveData.kode_klasifikasi },
@@ -420,8 +420,8 @@ export default function ArsipDetailPage() {
                             </div>
 
                             <div>
-                                <h3 className="text-lg font-semibold text-foreground mb-4">Periode & Status</h3>
-                                <dl className="space-y-4 text-sm">
+                                <h3 className="text-xl font-semibold text-foreground mb-4">Periode & Status</h3>
+                                <dl className="space-y-4 text-xl">
                                     {[
                                         // tanggal_mulai dan tanggal_berakhir dihapus
                                         { label: "Jangka Simpan (Aktif)", value: archiveData.jangka_simpan ? `${archiveData.jangka_simpan}` : 'N/A' },
@@ -445,8 +445,8 @@ export default function ArsipDetailPage() {
                                     ))}
                                 </dl>
 
-                                <h3 className="text-lg font-semibold text-foreground mt-8 mb-4">Informasi Tambahan</h3>
-                                <dl className="space-y-4 text-sm">
+                                <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">Informasi Tambahan</h3>
+                                <dl className="space-y-4 text-xl">
                                     {[
                                         { label: "Dibuat Oleh", value: archiveData.users?.nama },
                                         { label: "Tanggal Dibuat", value: formatDate(archiveData.created_at, true) },
@@ -460,8 +460,8 @@ export default function ArsipDetailPage() {
 
                                 {archiveData.lokasi_penyimpanan && (
                                     <>
-                                        <h3 className="text-lg font-semibold text-foreground mt-8 mb-4">Lokasi Penyimpanan</h3>
-                                        <dl className="space-y-4 text-sm">
+                                        <h3 className="text-xl font-semibold text-foreground mt-8 mb-4">Lokasi Penyimpanan</h3>
+                                        <dl className="space-y-4 text-xl">
                                             {[
                                                 { label: "Bidang", value: archiveData.lokasi_penyimpanan.daftar_bidang?.nama_bidang?.replace(/_/g, " ") },
                                                 { label: "No. Filing Cabinet", value: archiveData.lokasi_penyimpanan.no_filing_cabinet },
@@ -513,7 +513,7 @@ export default function ArsipDetailPage() {
                                                 <td className="px-4 py-3 text-sm text-center max-w-xs truncate" title={item.jangka_simpan || undefined}>{item.jangka_simpan || '-'}</td>
                                                 <td className="px-4 py-3 text-sm text-center max-w-xs truncate" title={item.keterangan || undefined}>{item.keterangan || '-'}</td>
                                                 <td className="px-4 py-3 text-sm text-center whitespace-nowrap">
-                                                    <Link href={`/arsip/arsip-aktif/detail-item/${item.id_isi_arsip}`} passHref>
+                                                    <Link href={`/arsip/detail-item/${item.id_isi_arsip}`} passHref>
                                                         <button
                                                             className="p-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary group transition-all duration-150 ease-in-out"
                                                             title="Lihat Detail Item"

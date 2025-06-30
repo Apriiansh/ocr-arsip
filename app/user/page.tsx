@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FaRegFileAlt, FaRegCalendarAlt, FaRegCopy, FaFolder, FaExternalLinkAlt, FaChartBar } from "react-icons/fa";
+import { FaRegFileAlt, FaRegCalendarAlt, FaRegCopy, FaFolder, FaExternalLinkAlt, FaChartBar, FaArchive, FaRegFileArchive, FaFileArchive, FaFilePdf } from "react-icons/fa";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "react-toastify";
@@ -15,7 +15,7 @@ import { useAuth } from "@/context/AuthContext";
 
 interface Stats {
     totalArsip: number;
-    arsipBulanIni: number;
+    arsipAlihMedia: number;
     arsipDipindahkan: number;
 }
 
@@ -40,23 +40,23 @@ interface MonthlyChartEntry {
 function StatsCards({ stats }: { stats: Stats }) {
     const statsData = [
         {
-            title: "Arsip Bulan Ini",
-            value: stats.arsipBulanIni,
-            icon: FaRegFileAlt,
-            colorClass: "primary",
-            description: "Ditambahkan bulan ini"
-        },
-        {
             title: "Total Arsip",
             value: stats.totalArsip,
-            icon: FaRegCalendarAlt,
+            icon: FaRegFileAlt,
             colorClass: "neon-green",
             description: "Keseluruhan arsip"
         },
         {
+            title: "Arsip Telah Dialihmediakan",
+            value: stats.arsipAlihMedia,
+            icon: FaFilePdf,
+            colorClass: "primary",
+            description: "Sudah dialihmediakan"
+        },
+        {
             title: "Arsip Dipindahkan",
             value: stats.arsipDipindahkan,
-            icon: FaRegCopy,
+            icon: FaArchive,
             colorClass: "neon-orange",
             description: "Sudah dipindahkan"
         },
@@ -372,7 +372,7 @@ function DashboardContent() {
 
     const [stats, setStats] = useState<Stats>({
         totalArsip: 0,
-        arsipBulanIni: 0,
+        arsipAlihMedia: 0,
         arsipDipindahkan: 0
     });
 
@@ -398,7 +398,7 @@ function DashboardContent() {
 
             const lokasiIds = lokasiDiBidang?.map(l => l.id_lokasi) || [];
             if (lokasiIds.length === 0) {
-                setStats({ totalArsip: 0, arsipBulanIni: 0, arsipDipindahkan: 0 });
+                setStats({ totalArsip: 0, arsipAlihMedia: 0, arsipDipindahkan: 0 });
                 setMonthlyChartData([]);
                 setRecentArchives([]);
                 setRetentionAlerts([]);
@@ -445,6 +445,25 @@ function DashboardContent() {
             const dipindahkanIds = pemindahanLinks?.map(link => link.id_arsip_aktif_fkey).filter(id => id != null) || [];
             const arsipDipindahkan = arsipAktif?.filter(arsip => dipindahkanIds.includes(arsip.id_arsip_aktif)) || [];
 
+            // Fetch all isi arsip aktif IDs for this bidang
+            const { data: isiArsipList, error: isiArsipError } = await supabase
+                .from("daftar_isi_arsip_aktif")
+                .select("id_isi_arsip, id_berkas_induk_fkey")
+                .in("id_berkas_induk_fkey", arsipAktif?.map(a => a.id_arsip_aktif) || []);
+            if (isiArsipError) throw isiArsipError;
+            const isiArsipIds = isiArsipList?.map(i => i.id_isi_arsip) || [];
+
+            // Fetch count of alih media for this bidang
+            let arsipAlihMedia = 0;
+            if (isiArsipIds.length > 0) {
+                const { count: alihMediaCount, error: alihMediaError } = await supabase
+                    .from("alih_media_isi_arsip")
+                    .select("id_isi_arsip_fkey", { count: "exact", head: true })
+                    .in("id_isi_arsip_fkey", isiArsipIds);
+                if (alihMediaError) throw alihMediaError;
+                arsipAlihMedia = alihMediaCount || 0;
+            }
+
             // Calculate stats
             const currentDate = new Date();
             const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -453,8 +472,8 @@ function DashboardContent() {
             ).length || 0;
 
             const newStats = {
-                totalArsip: (arsipAktif?.length || 0) + (arsipInaktifCount || 0),
-                arsipBulanIni,
+                totalArsip: arsipAktif?.length || 0,
+                arsipAlihMedia,
                 arsipDipindahkan: arsipDipindahkan.length
             };
 
@@ -634,10 +653,9 @@ function DashboardContent() {
             </div>
         );
     }
-    // Jika user tidak ada setelah loading auth selesai (seharusnya sudah di-redirect oleh AuthContext)
+    
     if (!user) {
-        // Bisa return null atau komponen "Unauthorized" jika AuthContext tidak redirect
-        return <Loading />; // Atau null, karena redirect seharusnya sudah terjadi
+        return <Loading />; 
     }
 
     return (

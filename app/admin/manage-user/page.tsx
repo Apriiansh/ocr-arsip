@@ -9,7 +9,7 @@ import {
     adminCreateUserAction,
 } from "@/app/actions";
 import { Modal } from "@/components/Modal";
-import { FaEdit, FaTrash } from "react-icons/fa";
+import { FaEdit, FaTrash, FaEye, FaEyeSlash } from "react-icons/fa";
 import { Users, Filter, ArrowDown, ArrowUp, ChevronsUpDown, PlusCircle } from "lucide-react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -41,6 +41,7 @@ export default function ManageUsersPage() {
     const [filterRole, setFilterRole] = useState<string>("Semua");
     const [sortColumn, setSortColumn] = useState<string>('nama');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+    const [showPassword, setShowPassword] = useState(false);
 
     const fetchUsers = useCallback(async (roleToFilter: string) => {
         setLoading(true);
@@ -118,6 +119,15 @@ export default function ManageUsersPage() {
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
+        // Validasi nama: hanya huruf, spasi, dan karakter khusus tertentu
+        if (name === "nama") {
+            // Hanya izinkan huruf, spasi, titik, koma, tanda petik, strip (tanpa unicode jika target bukan es6)
+            if (!/^[a-zA-Z .,'-]*$/.test(value)) return;
+        }
+        // Validasi NIP: hanya angka
+        if (name === "nip") {
+            if (value && !/^\d*$/.test(value)) return;
+        }
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
@@ -165,6 +175,38 @@ export default function ManageUsersPage() {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+        // Validasi nama wajib diisi dan tidak boleh mengandung angka
+        if (!formData.nama || /\d/.test(formData.nama)) {
+            toast.error("Nama hanya boleh berisi huruf dan tidak boleh mengandung angka.");
+            return;
+        }
+        // Validasi password (minimal 8 karakter, kombinasi huruf, angka, simbol)
+        if (modalMode === "create" || (modalMode === "edit" && formData.password)) {
+            if (!formData.password || formData.password.length < 8) {
+                toast.error("Password minimal 8 karakter.");
+                return;
+            }
+            if (!/[A-Za-z]/.test(formData.password) || !/\d/.test(formData.password) || !/[^A-Za-z0-9]/.test(formData.password)) {
+                toast.error("Password harus mengandung huruf, angka, dan simbol.");
+                return;
+            }
+        }
+        // Validasi email
+        if (!/^\S+@\S+\.\S+$/.test(formData.email)) {
+            toast.error("Format email tidak valid.");
+            return;
+        }
+        // Validasi NIP jika diisi (hanya angka, minimal 8 digit)
+        if (formData.nip && formData.nip.length > 0 && !/^\d{8,}$/.test(formData.nip)) {
+            toast.error("NIP harus berupa angka minimal 8 digit.");
+            return;
+        }
+        // Validasi pangkat (opsional, tapi jika diisi minimal 3 karakter)
+        if (formData.pangkat && formData.pangkat.length > 0 && formData.pangkat.length < 3) {
+            toast.error("Pangkat minimal 3 karakter jika diisi.");
+            return;
+        }
+
         const formPayload = new FormData();
         console.log("[handleSubmit] Form submitted. Current formData state:", formData, "Mode:", modalMode);
 
@@ -372,8 +414,9 @@ export default function ManageUsersPage() {
                     <Modal 
                         isOpen={isModalOpen} 
                         onClose={closeModal} 
-                        title={modalMode === "edit" ? "Edit Pengguna" : "Tambah Pengguna Baru"}>
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        title={modalMode === "edit" ? "Edit Pengguna" : "Tambah Pengguna Baru"}
+                    >
+                        <form onSubmit={handleSubmit} className="space-y-4 p-2">
                             <div>
                                 <label htmlFor="nama" className="block text-sm font-medium text-muted-foreground">Nama Lengkap</label>
                                 <input type="text" name="nama" id="nama" value={formData.nama} onChange={handleInputChange} required className="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm bg-input text-foreground" />
@@ -386,7 +429,25 @@ export default function ManageUsersPage() {
                                 <label htmlFor="password" className="block text-sm font-medium text-muted-foreground">
                                     Password
                                 </label>
-                                <input type="password" name="password" id="password" value={formData.password} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm bg-input text-foreground" />
+                                <div className="relative">
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        name="password"
+                                        id="password"
+                                        value={formData.password}
+                                        onChange={handleInputChange}
+                                        className="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm bg-input text-foreground pr-10"
+                                    />
+                                    <button
+                                        type="button"
+                                        tabIndex={-1}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-base px-1 py-0.5 rounded focus:outline-none"
+                                        onClick={() => setShowPassword(v => !v)}
+                                        aria-label={showPassword ? "Sembunyikan password" : "Lihat password"}
+                                    >
+                                        {showPassword ? <FaEyeSlash /> : <FaEye />}
+                                    </button>
+                                </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>

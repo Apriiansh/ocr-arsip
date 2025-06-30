@@ -346,7 +346,7 @@ export default function VisualisasiFiling() {
                       {isOpen && laciData ? (
                         // Folder diurutkan berdasarkan kode klasifikasi (no_folder)
                         Object.entries(laciData.folders)
-                          .sort((a, b) => a[0].localeCompare(b[0]))
+                          .sort((a, b) => Number(a[0]) - Number(b[0]))
                           .map(([folderNo, folder]) => {
                             const folderKey = `${cabinetNo}-${laciNo}-${folderNo}`;
                             const isFolderOpen = expandedFolders.has(folderKey);

@@ -41,10 +41,26 @@ export default function SignIn() {
   };
 
   return (
+    
+
     <div className="card-neon relative w-full max-w-lg px-10 pt-2 pb-25 md:px-10 md:pt-10 md:pb-16 justify-center mx-auto">
-      <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-6 text-center">
-        Sign In
-      </h2>
+      
+      <div className="text-center mb-8">
+        <img src="/logosumsel.png" className="w-20 h-24 mx-auto" alt="Logo Sumsel" />
+        <h1 className="text-3xl md:text-4xl font-bold text-primary tracking-tight">
+          CrChive
+        </h1>
+        <p className="text-secondary-foreground mt-2">
+          Pengelolaan Arsip Dinamis Dinas Kearsipan Provinsi Sumatera Selatan
+        </p>
+
+        <div className="p-2">
+
+        <div>
+          <h2 className="text-bold text-secondary-foreground text-4xl font-bold">Sign In</h2>
+        </div>
+        </div>
+      </div>
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
           <p className="text-sm text-center">{error}</p>

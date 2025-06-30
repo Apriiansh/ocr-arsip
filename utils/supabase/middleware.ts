@@ -41,20 +41,18 @@ export const updateSession = async (request: NextRequest) => {
     // Rute autentikasi (pengguna yang sudah login akan dialihkan dari sini)
     const authRoutes = ["/sign-in"]; // Hanya /sign-in yang dianggap rute auth utama
     const publicRoutes = ["/sign-in", "/sign-up", "/user-manual"]; // Rute yang bisa diakses tanpa login
-    /* Daftar path yang memerlukan otentikasi (sekarang semua rute selain publicRoutes akan memerlukan login)
-      "/unit-pengolah",
-      "/unit-kearsipan",
-      "/arsip",
-      "/notifikasi",
-      "/user",
-      "/admin",
-      "/kepala-dinas",
-      "/settings",
-    ];*/
+    
+    // Paths yang tidak perlu redirectedFrom parameter
+    const rootPaths = ["/", ""]; // Root paths yang langsung redirect ke sign-in tanpa parameter
+    
+    // Paths yang dianggap sebagai "landing pages" atau entry points
+    const entryPaths = ["/", "/user", "unit-pengolah", "unit-kearsipan", "kepala-dinas", "admin"]; // Paths yang tidak perlu redirectedFrom
 
     // Make auth route check more precise
     const isAuthRoute = authRoutes.some(route => pathname === route || pathname.startsWith(route + '/'));
     const isPublicRoute = publicRoutes.some(route => pathname === route || pathname.startsWith(route + '/'));
+    const isRootPath = rootPaths.includes(pathname);
+    const isEntryPath = entryPaths.includes(pathname);
 
     // Jika pengguna mencoba mengakses halaman sign-in, biarkan saja.
     if (isAuthRoute) {
@@ -63,13 +61,16 @@ export const updateSession = async (request: NextRequest) => {
 
     // Jika bukan rute publik dan bukan rute sign-in,
     // selalu coba ambil sesi pengguna. Jika tidak ada sesi, redirect ke sign-in.
-    // Ini efektif membuat semua halaman (kecuali yang eksplisit publik) memerlukan login.
     if (!isPublicRoute) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-          const redirectUrl = new URL("/sign-in", request.url);
-          redirectUrl.searchParams.set('redirectedFrom', pathname); // Opsional, jika ingin redirect kembali setelah login
-          return NextResponse.redirect(redirectUrl);
+        const redirectUrl = new URL("/sign-in", request.url);
+        
+        if (!isRootPath && !isEntryPath && pathname !== "/favicon.ico" && !pathname.startsWith("/_next")) {
+          redirectUrl.searchParams.set('redirectedFrom', pathname);
+        }
+        
+        return NextResponse.redirect(redirectUrl);
       }
     }
 

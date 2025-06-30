@@ -163,7 +163,7 @@ export default function IsiArsipDetailPage() {
         } else {
             toast.success("Item berhasil dihapus.");
             if (itemData.berkas_arsip_aktif?.id_arsip_aktif) {
-                router.push(`/arsip/arsip-aktif/detail/${itemData.berkas_arsip_aktif.id_arsip_aktif}`);
+                router.push(`/arsip/detail/${itemData.berkas_arsip_aktif.id_arsip_aktif}`);
             } else {
                 router.push('/arsip/daftar-aktif');
             }
@@ -231,7 +231,7 @@ export default function IsiArsipDetailPage() {
                                 </Link>
                             )}
                             {/* Alih Media Button: Langsung ke Halaman Alih Media, auto OCR */}
-                            {itemData.file_url && (
+                            {showEdit && itemData.file_url && (
                                 <Link
                                     href={`/arsip/alih-media?isiArsipId=${itemId}&fileUrl=${encodeURIComponent(itemData.file_url)}`}
                                     className="btn-accent flex items-center gap-2"

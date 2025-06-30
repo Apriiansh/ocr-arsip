@@ -427,6 +427,9 @@ export default function Navbar() {
                         <Link href="/arsip/daftar-inaktif" onClick={closeAllMenusAndDropdowns} className={getDropdownItemClass('/arsip/daftar-inaktif')}>
                           Arsip Inaktif
                         </Link>
+                        <Link href="/arsip/daftar-alih-media" onClick={closeAllMenusAndDropdowns} className={getDropdownItemClass('/arsip/daftar-alih-media')}>
+                          Daftar Alih Media
+                        </Link>
                       </div>
                     )}
                   </div>
@@ -648,6 +651,7 @@ export default function Navbar() {
                   <div className="pl-6 space-y-1">
                     <Link href="/arsip/daftar-aktif" onClick={closeAllMenusAndDropdowns} className={getMobileItemClass('/arsip/daftar-aktif')}>Arsip Aktif</Link>
                     <Link href="/arsip/daftar-inaktif" onClick={closeAllMenusAndDropdowns} className={getMobileItemClass('/arsip/daftar-inaktif')}>Arsip Inaktif</Link>
+                    <Link href="/arsip/daftar-alih-media" onClick={closeAllMenusAndDropdowns} className={getMobileItemClass('/arsip/daftar-alih-media')}>Daftar Alih Media</Link>
                   </div>
                 )}
 
