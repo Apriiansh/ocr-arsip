@@ -109,7 +109,7 @@ export default function IsiArsipDetailPage() {
         setError(null);
         try {
             const { data, error: itemError } = await supabase
-                .from('daftar_isi_arsip_aktif')
+                .from('isi_berkas_arsip')
                 .select(`
                     *,
                     berkas_arsip_aktif:id_berkas_induk_fkey (id_arsip_aktif, nomor_berkas, uraian_informasi),
@@ -153,7 +153,7 @@ export default function IsiArsipDetailPage() {
 
         setLoading(true);
         const { error: deleteError } = await supabase
-            .from('daftar_isi_arsip_aktif')
+            .from('isi_berkas_arsip')
             .delete()
             .eq('id_isi_arsip', itemData.id_isi_arsip);
 

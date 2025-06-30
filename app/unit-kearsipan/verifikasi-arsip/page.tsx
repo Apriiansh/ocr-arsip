@@ -177,7 +177,7 @@ export default function VerifikasiArsipInaktif() {
                 if (arsip.user_id && arsip.user_id !== currentUserId) {
                     const notificationTitle = `Status Arsip Inaktif: ${newStatus}`;
                     const notificationMessage = `Arsip "${arsip.jenis_arsip}" (${arsip.kode_klasifikasi}) telah ${newStatus.toLowerCase()} oleh Sekretaris.`;
-                    const link = `/arsip/arsip-inaktif/detail/${arsip.id_arsip_inaktif}`;
+                    const link = `/arsip/detail/${arsip.id_arsip_inaktif}`;
                     await sendUserNotification(
                         arsip.user_id,
                         notificationTitle,

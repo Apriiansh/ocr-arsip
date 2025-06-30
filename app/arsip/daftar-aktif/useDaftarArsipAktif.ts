@@ -172,7 +172,7 @@ export function useDaftarArsipAktif() {
         const isiIdsToExclude = pemindahanIsiLinks?.map(link => link.id_isi_arsip).filter(id => id != null) || [];    
 
         let query = supabase
-          .from("daftar_isi_arsip_aktif")
+          .from("isi_berkas_arsip")
           .select(`
             id_isi_arsip, id_berkas_induk_fkey, nomor_item, kode_klasifikasi, uraian_informasi,
             kurun_waktu, jumlah, keterangan, jangka_simpan, tingkat_perkembangan, media_simpan, file_url,
@@ -345,7 +345,7 @@ export function useDaftarArsipAktif() {
     if (!window.confirm(`Apakah Anda yakin ingin menghapus ${type === 'berkas' ? 'berkas' : 'item isi berkas'} ini?`)) return;
     setDataLoading(true); // Tampilkan loading saat menghapus
 
-    const fromTable = type === 'berkas' ? 'arsip_aktif' : 'daftar_isi_arsip_aktif';
+    const fromTable = type === 'berkas' ? 'arsip_aktif' : 'isi_berkas_arsip';
     const idColumn = type === 'berkas' ? 'id_arsip_aktif' : 'id_isi_arsip';
 
     const { error } = await supabase
@@ -469,7 +469,7 @@ export function useDaftarArsipAktif() {
 
       // 2. Fetch ALL daftar isi arsip aktif (tanpa filter status persetujuan)
       let isiQuery = supabase
-        .from("daftar_isi_arsip_aktif")
+        .from("isi_berkas_arsip")
         .select(`
         id_isi_arsip, id_berkas_induk_fkey, nomor_item, kode_klasifikasi, uraian_informasi,
         kurun_waktu, jumlah, keterangan, jangka_simpan, tingkat_perkembangan, media_simpan, file_url,
@@ -705,10 +705,10 @@ export function useDaftarArsipAktif() {
       }
       const isiIdsToExclude = pemindahanIsiLinks?.map(link => link.id_isi_arsip).filter(id => id != null) || [];
 
-      // 2. Fetch ALL daftar_isi_arsip_aktif data for the current user's bidang, excluding moved ones
+      // 2. Fetch ALL isi_berkas_arsip data for the current user's bidang, excluding moved ones
       // Also fetch the parent berkas_arsip_aktif's nomor_berkas for sorting
       let allIsiQuery = supabase
-        .from("daftar_isi_arsip_aktif")
+        .from("isi_berkas_arsip")
         .select(`
           id_isi_arsip,
           id_berkas_induk_fkey,
@@ -761,7 +761,7 @@ export function useDaftarArsipAktif() {
           const newNomorItem = `${berkasInduk?.nomor_berkas}.${index + 1}`;
           updatePromises.push(Promise.resolve(
             supabase
-              .from("daftar_isi_arsip_aktif")
+              .from("isi_berkas_arsip")
               .update({ nomor_item: newNomorItem })
               .eq("id_isi_arsip", item.id_isi_arsip)
             ));

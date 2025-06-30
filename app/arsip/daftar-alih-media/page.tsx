@@ -29,7 +29,7 @@ export default function DaftarAlihMediaPage() {
                 .from("alih_media_isi_arsip")
                 .select(`
                     id_alih_media, id_isi_arsip_fkey, hasil_ocr_json, status, file_url, created_at,
-                    daftar_isi_arsip_aktif:daftar_isi_arsip_aktif!inner (
+                    isi_berkas_arsip:isi_berkas_arsip!inner (
                         id_isi_arsip, id_berkas_induk_fkey, nomor_item, kode_klasifikasi, uraian_informasi,
                         berkas_arsip_aktif:id_berkas_induk_fkey!inner (
                             nomor_berkas, uraian_informasi, akses,
@@ -37,7 +37,7 @@ export default function DaftarAlihMediaPage() {
                         )
                     )
                 `)
-                .eq('daftar_isi_arsip_aktif.berkas_arsip_aktif.lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey);
+                .eq('isi_berkas_arsip.berkas_arsip_aktif.lokasi_penyimpanan.id_bidang_fkey', user.id_bidang_fkey);
             if (searchText && searchText.trim() !== "") {
                 const keys = [
                     'isi', 'hal', 'kepada', 'alamat', 'penutup', 'nomor', 'tanggal',
@@ -172,12 +172,12 @@ export default function DaftarAlihMediaPage() {
                                 <tbody className="bg-card divide-y divide-border">
                                     {data.map((item: any) => (
                                         <tr key={item.id_alih_media} className="hover:bg-muted transition-colors duration-150">
-                                            <td className="px-4 py-3 text-sm text-center" title={item.daftar_isi_arsip_aktif?.berkas_arsip_aktif?.uraian_informasi}>
-                                                {item.daftar_isi_arsip_aktif?.berkas_arsip_aktif?.nomor_berkas || '-'}
+                                            <td className="px-4 py-3 text-sm text-center" title={item.isi_berkas_arsip?.berkas_arsip_aktif?.uraian_informasi}>
+                                                {item.isi_berkas_arsip?.berkas_arsip_aktif?.nomor_berkas || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-center">{item.daftar_isi_arsip_aktif?.nomor_item}</td>
-                                            <td className="px-4 py-3 text-sm text-center">{item.daftar_isi_arsip_aktif?.kode_klasifikasi}</td>
-                                            <td className="px-4 py-3 text-sm text-left max-w-xs truncate" title={item.daftar_isi_arsip_aktif?.uraian_informasi}>{item.daftar_isi_arsip_aktif?.uraian_informasi}</td>
+                                            <td className="px-4 py-3 text-sm text-center">{item.isi_berkas_arsip?.nomor_item}</td>
+                                            <td className="px-4 py-3 text-sm text-center">{item.isi_berkas_arsip?.kode_klasifikasi}</td>
+                                            <td className="px-4 py-3 text-sm text-left max-w-xs truncate" title={item.isi_berkas_arsip?.uraian_informasi}>{item.isi_berkas_arsip?.uraian_informasi}</td>
                                             <td className="px-4 py-3 text-sm text-center">
                                                 {item.file_url ? (
                                                     <a
@@ -195,7 +195,7 @@ export default function DaftarAlihMediaPage() {
                                             </td>
                                             <td className="px-4 py-3 text-sm text-center">
                                                 <Link
-                                                    href={`/arsip/alih-media?isiArsipId=${item.daftar_isi_arsip_aktif?.id_isi_arsip}&fileUrl=${encodeURIComponent(item.file_url || "")}`}
+                                                    href={`/arsip/alih-media?isiArsipId=${item.isi_berkas_arsip?.id_isi_arsip}&fileUrl=${encodeURIComponent(item.file_url || "")}`}
                                                     className="inline-flex items-center justify-center w-9 h-9 rounded-md btn-accent hover:bg-accent/90 transition"
                                                     title="Alih Media dari File Digital (OCR Surat Scan)"
                                                 >

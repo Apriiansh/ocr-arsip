@@ -1069,9 +1069,9 @@ export default function PemindahanArsip() {
 
 			// 4.2 Insert ke pemindahan_isi_berkas
 			for (const inaktif of newInactiveArsip) {
-				// Ambil semua isi dari daftar_isi_arsip_aktif untuk arsip aktif ini
+				// Ambil semua isi dari isi_berkas_arsip untuk arsip aktif ini
 				const { data: isiBerkas, error: isiError } = await supabase
-					.from("daftar_isi_arsip_aktif")
+					.from("isi_berkas_arsip")
 					.select("id_isi_arsip")
 					.eq("id_berkas_induk_fkey", inaktif.id_arsip_aktif);
 

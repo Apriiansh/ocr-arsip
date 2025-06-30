@@ -496,7 +496,7 @@ export function useBerkasArsipAktif(enabled: boolean, user: UserProfile | null =
         } else {
           await supabase.from('draft_input_berkas_arsip').delete().eq('user_id', user.id);
           toast.success('Berkas berhasil diperbarui!');
-          router.push(`/arsip/arsip-aktif/detail/${editId}`); 
+          router.push(`/arsip/detail/${editId}`); 
         }
       } else {
         // Insert new record

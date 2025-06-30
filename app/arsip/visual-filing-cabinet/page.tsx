@@ -56,6 +56,22 @@ interface UserData {
   daftar_bidang?: { nama_bidang: string } | { nama_bidang: string }[];
 }
 
+// Tambahkan interface untuk isi berkas
+interface IsiBerkasArsip {
+  id_isi_arsip: string;
+  id_berkas_induk_fkey: string;
+  nomor_item: string;
+  kode_klasifikasi: string;
+  uraian_informasi: string;
+  kurun_waktu: string | null;
+  jumlah: number | null;
+  keterangan: string | null;
+  jangka_simpan: string | null;
+  tingkat_perkembangan: string | null;
+  media_simpan: string | null;
+  file_url: string | null;
+}
+
 export default function VisualisasiFiling() {
   const supabase = createClient();
   const router = useRouter();
@@ -67,6 +83,7 @@ export default function VisualisasiFiling() {
   const [expandedCabinets, setExpandedCabinets] = useState<Set<string>>(new Set());
   const [expandedLaci, setExpandedLaci] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [isiBerkasList, setIsiBerkasList] = useState<IsiBerkasArsip[]>([]);
 
   const ALLOWED_ROLE = "Pegawai";
   const SIGN_IN_PATH = "/sign-in";
@@ -226,11 +243,52 @@ export default function VisualisasiFiling() {
     setDataLoading(false);
   }, [userBidangId, supabase]);
 
+  // Fetch isi berkas arsip aktif
+  const fetchIsiBerkas = useCallback(async (arsipAktifIds: string[]) => {
+    if (!arsipAktifIds.length) {
+      setIsiBerkasList([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('isi_berkas_arsip')
+      .select('*')
+      .in('id_berkas_induk_fkey', arsipAktifIds);
+    if (error) {
+      toast.error('Gagal memuat isi berkas arsip: ' + error.message);
+      setIsiBerkasList([]);
+      return;
+    }
+    setIsiBerkasList(data || []);
+  }, [supabase]);
+
   useEffect(() => {
     if (userBidangId !== null) {
       fetchVisualizationData();
     }
   }, [userBidangId, fetchVisualizationData]);
+
+  // Fetch isi berkas setelah visualizationData berubah
+  useEffect(() => {
+    // Kumpulkan semua id_arsip_aktif dari visualizationData
+    const allArsipAktifIds: string[] = [];
+    Object.values(visualizationData).forEach(cabinet => {
+      Object.values(cabinet.laci).forEach(laci => {
+        Object.values(laci.folders).forEach(folder => {
+          folder.arsip_list.forEach(arsip => {
+            if (arsip.id_arsip_aktif) allArsipAktifIds.push(arsip.id_arsip_aktif);
+          });
+        });
+      });
+    });
+    fetchIsiBerkas(allArsipAktifIds);
+  }, [visualizationData, fetchIsiBerkas]);
+
+  // Helper untuk ambil isi berkas per folder
+  const getIsiBerkasForBerkas = useCallback((id_arsip_aktif: string) => {
+    return isiBerkasList
+      .filter(isi => isi.id_berkas_induk_fkey === id_arsip_aktif)
+      .sort((a, b) => a.nomor_item.localeCompare(b.nomor_item));
+  }, [isiBerkasList]);
 
   // Toggle expand functions
   const toggleCabinet = (cabinetNo: string) => {
@@ -269,7 +327,7 @@ export default function VisualisasiFiling() {
 
   return (
     <div className="bg-background py-8 px-4">
-      <div className="max-w-7xl mx-auto bg-card text-card-foreground rounded-xl shadow-lg overflow-hidden">
+      <div className="max-w-[1600px] mx-auto bg-card text-card-foreground rounded-xl shadow-lg overflow-hidden">
         {/* Header */}
         <div className="bg-primary text-primary-foreground px-6 py-4">
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -280,7 +338,7 @@ export default function VisualisasiFiling() {
 
         {/* Visualization Content */}
         <div className="p-6 border-t border-border">
-          <div className="max-w-md mx-auto">
+          <div className="max-w-[900px] mx-auto">
             <div className="bg-gray-400 rounded-lg shadow-lg p-2 flex flex-col gap-2 border-4 border-gray-600 relative">
               {/* Lemari atas */}
               <div className="absolute -top-3 left-0 right-0 h-3 bg-gray-600 rounded-t-lg"></div>
@@ -354,6 +412,14 @@ export default function VisualisasiFiling() {
                             // Urutkan arsip berdasarkan nomor_berkas (number)
                             const sortedArsip = [...folder.arsip_list].sort((a, b) => a.nomor_berkas - b.nomor_berkas);
                             
+                            // Ambil data folderName sesuai permintaan
+                            const folderBerkas = sortedArsip[0];
+                            let folderName = `Folder ${folderNo}`;
+                            if (folderBerkas) {
+                              let uraian = folderBerkas.uraian_informasi;
+                              if (uraian.length > 30) uraian = uraian.substring(0, 30) + '...';
+                              folderName = `${folderBerkas.nomor_berkas} - ${folderBerkas.kode_klasifikasi} - ${uraian}`;
+                            }
                             return (
                               <div key={folderNo} className="mb-3 border-b pb-2 last:border-b-0 last:pb-0">
                                 <div
@@ -367,8 +433,16 @@ export default function VisualisasiFiling() {
                                 >
                                   {isFolderOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                   <FolderOpen size={16} className="text-yellow-600" />
-                                  <span className="font-medium">Folder {folderNo}</span>
-                                  <span className="ml-2 text-xs text-muted-foreground">{folder.arsip_count} Arsip</span>
+                                  {/* Folder name as a link to arsip/detail/id */}
+                                  {folderBerkas ? (
+                                    <span className="font-medium text-primary hover:underline cursor-pointer" onClick={e => { e.stopPropagation(); router.push(`/arsip/detail/${folderBerkas.id_arsip_aktif}`); }}>
+                                      {folderName}
+                                    </span>
+                                  ) : (
+                                    <span className="font-medium">{folderName}</span>
+                                  )}
+                                  <span className="flex-1" />
+                                  <span className="ml-2 text-xs text-muted-foreground text-right min-w-[70px]">{folderBerkas ? `${folderBerkas.jumlah || 0} Berkas` : '0 Berkas'}</span>
                                 </div>
                                 <div
                                   className="ml-6 transition-all duration-300"
@@ -379,30 +453,25 @@ export default function VisualisasiFiling() {
                                   }}
                                 >
                                   {isFolderOpen && (
-                                    sortedArsip.length > 0 ? (
-                                      sortedArsip.map((arsip) => (
-                                        <div
-                                          key={arsip.id_arsip_aktif}
-                                          className="flex items-center justify-between gap-1 py-1 px-2 hover:bg-muted/20 rounded transition"
-                                          style={{ minWidth: 0 }}
-                                        >
-                                          <div className="flex items-center gap-1 min-w-0 w-full">
-                                            <FileText size={14} className="text-blue-600 flex-shrink-0" />
-                                            <span className="text-xs font-medium flex-shrink-0 w-[60px] text-right">[{arsip.nomor_berkas}]</span>
-                                            <span className="text-xs font-medium flex-shrink-0 w-[80px] truncate">{arsip.kode_klasifikasi}</span>
-                                            <span className="text-xs text-muted-foreground truncate max-w-[140px]">{arsip.uraian_informasi}</span>
-                                          </div>
-                                          <div className="flex items-center gap-1 flex-shrink-0">
-                                            <button
-                                              onClick={() => router.push(`/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`)}
-                                              className="p-1 rounded text-blue-600 hover:bg-blue-50 transition"
-                                              title="Lihat Detail"
+                                    folderBerkas ? (
+                                      <div className="flex flex-col gap-1">
+                                        {/* Render isi berkas arsip */}
+                                        {getIsiBerkasForBerkas(folderBerkas.id_arsip_aktif).length > 0 ? (
+                                          getIsiBerkasForBerkas(folderBerkas.id_arsip_aktif).map((isi) => (
+                                            <div
+                                              key={isi.id_isi_arsip}
+                                              className="flex items-center gap-2 py-1 px-2 hover:bg-muted/20 rounded transition text-xs cursor-pointer"
+                                              onClick={() => router.push(`/arsip/detail-item/${isi.id_isi_arsip}`)}
                                             >
-                                              <Eye size={14} />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      ))
+                                              <FileText size={12} className="text-green-600 flex-shrink-0" />
+                                              <span className="font-mono w-[40px] text-right">{isi.nomor_item}</span>
+                                              <span className="truncate max-w-[180px]">{isi.uraian_informasi}</span>
+                                            </div>
+                                          ))
+                                        ) : (
+                                          <div className="text-xs text-muted-foreground">Tidak ada isi berkas</div>
+                                        )}
+                                      </div>
                                     ) : (
                                       <div className="text-xs text-muted-foreground">Folder kosong</div>
                                     )

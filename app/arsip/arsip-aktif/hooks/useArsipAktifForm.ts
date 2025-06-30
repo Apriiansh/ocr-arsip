@@ -129,7 +129,7 @@ useEffect(() => {
 
   const loadArchiveDataForEdit = async (id: string, currentBerkasIndukList: BerkasIndukItem[]) => {
     const { data, error } = await supabase
-      .from("daftar_isi_arsip_aktif")
+      .from("isi_berkas_arsip")
       .select(`*`)
       .eq("id_isi_arsip", id)
       .single();
@@ -295,7 +295,7 @@ useEffect(() => {
 
       try {
         const { data, error } = await supabase
-          .from("daftar_isi_arsip_aktif")
+          .from("isi_berkas_arsip")
           .select("nomor_item") // nomor_item is a string like "1.1", "1.2"
           .eq("id_berkas_induk_fkey", selectedBerkasIndukId);
 
@@ -626,7 +626,7 @@ useEffect(() => {
 
       if (editId) {
         const { error: updateError } = await supabase
-          .from('daftar_isi_arsip_aktif') // Changed table
+          .from('isi_berkas_arsip') // Changed table
           .update(isiArsipDataToSave) // Pass single object
           .eq('id_isi_arsip', editId); // Changed primary key
         if (updateError) {
@@ -642,7 +642,7 @@ useEffect(() => {
         }
       } else {
         const { data: insertedData, error: insertError } = await supabase
-          .from('daftar_isi_arsip_aktif')
+          .from('isi_berkas_arsip')
           .insert(isiArsipDataToSave)
           .select()
           .single();

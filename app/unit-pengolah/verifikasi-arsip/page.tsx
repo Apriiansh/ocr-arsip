@@ -221,7 +221,7 @@ export default function VerifikasiArsip() {
                 if (arsip.user_id && arsip.user_id !== currentAuthUserId) {
                     const notificationTitle = `Status Arsip Aktif: ${status}`;
                     const notificationMessage = `Arsip "${arsip.uraian_informasi}" (${arsip.kode_klasifikasi}) telah ${status.toLowerCase()} oleh Kepala Bidang.`;
-                    const link = `/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`;
+                    const link = `/arsip/detail/${arsip.id_arsip_aktif}`;
 
                     await sendUserNotification(
                         arsip.user_id,
@@ -422,7 +422,7 @@ export default function VerifikasiArsip() {
                                                             className="p-1.5 rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary group transition-all duration-150 ease-in-out"
                                                             title="Lihat Detail Arsip"
                                                             aria-label="Lihat Detail Arsip"
-                                                            onClick={() => router.push(`/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`)}
+                                                            onClick={() => router.push(`/arsip/detail/${arsip.id_arsip_aktif}`)}
                                                         >
                                                             <Eye size={18} className="transform group-hover:scale-110 transition-transform duration-150" />
                                                         </button>

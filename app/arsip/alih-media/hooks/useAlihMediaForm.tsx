@@ -296,10 +296,10 @@ export function useAlihMediaForm(options: UseAlihMediaFormOptions = {}) {
 
             if (alihMediaError) throw new Error(`Gagal menyimpan data alih media: ${alihMediaError.message}`);
 
-            // 4. Update file_url di tabel daftar_isi_arsip_aktif
+            // 4. Update file_url di tabel isi_berkas_arsip
             toast.info("Memperbarui file arsip asli...");
             const { error: updateArsipError } = await supabase
-                .from('daftar_isi_arsip_aktif')
+                .from('isi_berkas_arsip')
                 .update({ file_url: newFileUrl })
                 .eq('id_isi_arsip', isiArsipId);
 

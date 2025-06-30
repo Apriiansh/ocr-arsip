@@ -447,7 +447,7 @@ function DashboardContent() {
 
             // Fetch all isi arsip aktif IDs for this bidang
             const { data: isiArsipList, error: isiArsipError } = await supabase
-                .from("daftar_isi_arsip_aktif")
+                .from("isi_berkas_arsip")
                 .select("id_isi_arsip, id_berkas_induk_fkey")
                 .in("id_berkas_induk_fkey", arsipAktif?.map(a => a.id_arsip_aktif) || []);
             if (isiArsipError) throw isiArsipError;

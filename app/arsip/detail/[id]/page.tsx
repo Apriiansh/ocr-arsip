@@ -35,7 +35,7 @@ interface ArsipAktifDetail {
             nama_bidang: string;
         } | null;
     } | null;
-    daftar_isi_arsip_aktif_count?: number; 
+    isi_berkas_arsip_count?: number; 
 }
 
 // Definisi interface untuk daftar isi arsip aktif (disesuaikan untuk halaman detail ini)
@@ -209,7 +209,7 @@ export default function ArsipDetailPage() {
 
                     // Ambil jumlah item isi arsip
                     const { count, error: countError } = await supabase
-                        .from('daftar_isi_arsip_aktif')
+                        .from('isi_berkas_arsip')
                         .select('*', { count: 'exact', head: true })
                         .eq('id_berkas_induk_fkey', archiveId);
 
@@ -222,7 +222,7 @@ export default function ArsipDetailPage() {
 
                     // NEW: Ambil daftar isi arsip aktif
                     const { data: isiData, error: isiError } = await supabase
-                        .from('daftar_isi_arsip_aktif')
+                        .from('isi_berkas_arsip')
                         .select(`
                             id_isi_arsip,
                             nomor_item,
@@ -267,7 +267,7 @@ export default function ArsipDetailPage() {
         setLoading(true); 
 
         const { error } = await supabase
-            .from('daftar_isi_arsip_aktif')
+            .from('isi_berkas_arsip')
             .delete()
             .eq('id_isi_arsip', id);
 
