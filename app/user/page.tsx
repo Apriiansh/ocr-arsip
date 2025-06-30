@@ -165,7 +165,7 @@ function RecentArchives({ archives }: { archives: ArsipData[] }) {
                                     {truncateText(arsip.uraian_informasi, 50)}
                                 </p>
                                 <Link
-                                    href={`/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`}
+                                    href={`/arsip/detail/${arsip.id_arsip_aktif}`}
                                     className="text-xs text-primary hover:underline flex"
                                 >
                                     Lihat Detail <FaExternalLinkAlt size={10} />
@@ -219,7 +219,7 @@ function RetentionAlerts({ archives }: { archives: ArsipJatuhTempo[] }) {
                                     {truncateText(arsip.uraian_informasi, 50)}
                                 </p>
                                 <Link
-                                    href={`/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`}
+                                    href={`/arsip/detail/${arsip.id_arsip_aktif}`}
                                     className="text-xs text-primary hover:underline flex items-center gap-1"
                                 >
                                     Lihat Detail <FaExternalLinkAlt size={10} />
@@ -586,7 +586,7 @@ function DashboardContent() {
                     const toastId = `retention-alert-${arsip.id_arsip_aktif}`;
                     if (!toast.isActive(toastId)) {
                         const handleView = () => {
-                            router.push(`/arsip/arsip-aktif/detail/${arsip.id_arsip_aktif}`);
+                            router.push(`/arsip/detail/${arsip.id_arsip_aktif}`);
                             toast.dismiss(toastId);
                         };
                         const handleDismiss = () => {
@@ -653,7 +653,7 @@ function DashboardContent() {
             </div>
         );
     }
-    
+
     if (!user) {
         return <Loading />; 
     }
