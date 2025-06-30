@@ -30,6 +30,9 @@ interface AuthContextType {
   retry: () => Promise<void>;
 }
 
+const GLOBAL_LOADING_TIMEOUT = 8 * 1000; // 8 detik (lebih cepat)
+const MAX_RETRY_ATTEMPTS = 3;
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -42,48 +45,57 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Simplified refs - hanya yang benar-benar diperlukan
+  // Refs untuk tracking state dan cleanup
   const mountedRef = useRef(true);
-  const isProcessingRef = useRef(false);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const authListenerRef = useRef<any>(null);
 
   const SIGN_IN_PATH = "/sign-in";
   const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/user-manual"];
-  const MAX_RETRY = 3;
-  const LOADING_TIMEOUT = 10000; // 10 detik
 
-  // Simplified loading timeout
-  const [loadingTimeout, setLoadingTimeout] = useState<NodeJS.Timeout | null>(null);
-
+  // Helper untuk cleanup timeout
   const clearLoadingTimeout = useCallback(() => {
-    if (loadingTimeout) {
-      clearTimeout(loadingTimeout);
-      setLoadingTimeout(null);
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
     }
-  }, [loadingTimeout]);
+  }, []);
 
-  // Simplified setLoading dengan auto timeout
-  const setLoadingState = useCallback((loading: boolean) => {
+  // Helper untuk set loading dengan timeout protection
+  const setLoadingWithTimeout = useCallback((loading: boolean) => {
     if (!mountedRef.current) return;
 
-    clearLoadingTimeout();
     setIsLoading(loading);
+    clearLoadingTimeout();
 
     if (loading) {
-      const timeout = setTimeout(() => {
-        if (mountedRef.current) {
-          console.warn("Loading timeout - forcing stop");
-          setIsLoading(false);
-          setError("Koneksi timeout. Silakan coba lagi.");
-        }
-      }, LOADING_TIMEOUT);
-      setLoadingTimeout(timeout);
-    }
-  }, [clearLoadingTimeout]);
+      loadingTimeoutRef.current = setTimeout(() => {
+        if (!mountedRef.current) return;
 
-  // Simplified fetchUserDetails
-  const fetchUserDetails = useCallback(async (authUser: SupabaseUser): Promise<UserProfile | null> => {
+        console.warn(`AuthContext: Loading timeout after ${GLOBAL_LOADING_TIMEOUT / 1000}s. Attempting retry...`);
+
+        if (retryCount < MAX_RETRY_ATTEMPTS) {
+          setRetryCount(prev => prev + 1);
+          // Retry initialization
+          initializeAuth();
+        } else {
+          console.error('AuthContext: Max retry attempts reached. Forcing page refresh.');
+          window.location.reload();
+        }
+      }, GLOBAL_LOADING_TIMEOUT);
+    }
+  }, [retryCount, clearLoadingTimeout]);
+
+  const fetchUserDetails = useCallback(async (authUser: SupabaseUser | null): Promise<UserProfile | null> => {
+    if (!authUser || !mountedRef.current) return null;
+
     try {
-      const { data: userData, error: userDbError } = await supabase
+      // Tambahkan timeout untuk query database
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Database query timeout')), 5000)
+      );
+
+      const queryPromise = supabase
         .from("users")
         .select(`
           nama, 
@@ -101,16 +113,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .eq("user_id", authUser.id)
         .single();
 
+      const { data: userData, error: userDbError } = await Promise.race([
+        queryPromise,
+        timeoutPromise
+      ]) as any;
+
+      if (!mountedRef.current) return null;
+
       if (userDbError) {
+        console.error("AuthContext: Error fetching user details:", userDbError.message);
+
+        // Jika error karena user tidak ditemukan, logout
         if (userDbError.code === 'PGRST116') {
-          // User tidak ditemukan di database
+          console.warn("AuthContext: User not found in database. Signing out...");
           await supabase.auth.signOut();
           return null;
         }
+
+        setError(`Gagal mengambil detail pengguna: ${userDbError.message}`);
         throw userDbError;
       }
 
-      if (!userData) return null;
+      if (!userData) {
+        setError("Data pengguna tidak ditemukan.");
+        return null;
+      }
 
       // Handle daftar_bidang data
       const daftarBidangData = Array.isArray(userData.daftar_bidang)
@@ -124,167 +151,180 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       };
 
     } catch (e: any) {
-      console.error("Error fetching user details:", e.message);
-      throw e;
+      if (!mountedRef.current) return null;
+
+      console.error("AuthContext: Error in fetchUserDetails:", e.message);
+      setError(`Terjadi kesalahan: ${e.message}`);
+      return null;
     }
   }, [supabase]);
 
-  // Simplified auth handler - no more complex state tracking
-  const handleAuthChange = useCallback(async (event: string, session: any) => {
-    // Prevent multiple simultaneous processing
-    if (isProcessingRef.current || !mountedRef.current) {
-      console.log("Skipping auth change - already processing or unmounted");
-      return;
-    }
-
-    isProcessingRef.current = true;
-    console.log(`Auth change: ${event}`);
+  const handleAuthStateChange = useCallback(async (event: string, session: any) => {
+    if (!mountedRef.current) return;
 
     try {
+      // Reset error saat ada perubahan auth state, kecuali pada halaman publik
+      const isPublicPage = PUBLIC_PATHS.some(p => pathname.startsWith(p));
+      if (!isPublicPage) {
+        setError(null);
+      }
+
       const authUser = session?.user ?? null;
 
       if (authUser) {
-        // User authenticated
         const userDetails = await fetchUserDetails(authUser);
 
-        if (mountedRef.current) {
-          if (userDetails) {
-            setUser(userDetails);
-            setError(null);
-            setRetryCount(0);
-          } else {
-            setUser(null);
-            if (!PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
-              router.push(SIGN_IN_PATH);
-            }
-          }
-        }
-      } else {
-        // No user
-        if (mountedRef.current) {
+        if (!mountedRef.current) return;
+
+        if (userDetails) {
+          setUser(userDetails);
+          setRetryCount(0); // Reset retry count on success
+        } else {
           setUser(null);
+          // Redirect ke sign-in jika bukan halaman publik
           if (!PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
             router.push(SIGN_IN_PATH);
           }
         }
-      }
-    } catch (error: any) {
-      console.error("Auth change error:", error);
-      if (mountedRef.current) {
-        setError("Terjadi kesalahan autentikasi");
+      } else {
         setUser(null);
+        // Redirect jika tidak ada sesi dan bukan halaman publik
+        if (!PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+          router.push(SIGN_IN_PATH);
+        }
+      }
+    } catch (error) {
+      console.error("AuthContext: Error in handleAuthStateChange:", error);
+      if (mountedRef.current) {
+        setError("Terjadi kesalahan saat memproses autentikasi.");
       }
     } finally {
       if (mountedRef.current) {
-        setLoadingState(false);
-        isProcessingRef.current = false;
+        setLoadingWithTimeout(false);
       }
     }
-  }, [fetchUserDetails, pathname, router, setLoadingState]);
+  }, [fetchUserDetails, pathname, router, setLoadingWithTimeout]);
 
-  // Simplified initialization
   const initializeAuth = useCallback(async () => {
-    if (!mountedRef.current || isProcessingRef.current) return;
+    if (!mountedRef.current) return;
 
-    // Check if on public page - skip auth if so
+    // Jika di halaman publik, skip auth check dan set loading false
     const isPublicPage = PUBLIC_PATHS.some(p => pathname.startsWith(p));
     if (isPublicPage) {
-      setLoadingState(false);
+      console.log("AuthContext: On public page, skipping auth initialization");
+      setLoadingWithTimeout(false);
+      setUser(null);
       return;
     }
 
-    console.log("Initializing auth...");
-    setLoadingState(true);
+    setLoadingWithTimeout(true);
     setError(null);
 
     try {
-      const { data: { user: initialUser }, error: authError } = await supabase.auth.getUser();
+      // Get initial user dengan timeout
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Auth initialization timeout')), 5000)
+      );
+
+      const authPromise = supabase.auth.getUser();
+
+      const { data: { user: initialUser }, error: authError } = await Promise.race([
+        authPromise,
+        timeoutPromise
+      ]) as any;
+
+      if (!mountedRef.current) return;
 
       if (authError) {
-        if (authError.message?.toLowerCase().includes('auth session missing')) {
-          // No session - normal untuk user yang belum login
-          setUser(null);
-          router.push(SIGN_IN_PATH);
-        } else {
-          setError(`Error autentikasi: ${authError.message}`);
+        // Abaikan error "Auth session missing" pada halaman publik
+        const isPublicPage = PUBLIC_PATHS.some(p => pathname.startsWith(p));
+        const isSessionMissingError = authError.message?.toLowerCase().includes('auth session missing');
+
+        if (isSessionMissingError && isPublicPage) {
+          console.log("AuthContext: No auth session on public page - this is expected");
+          setLoadingWithTimeout(false);
+          return;
         }
+
+        console.error("AuthContext: Auth error:", authError.message);
+        setError(`Error autentikasi: ${authError.message}`);
+        setLoadingWithTimeout(false);
         return;
       }
 
-      // Process initial user
-      await handleAuthChange('INITIAL_SESSION', { user: initialUser });
+      await handleAuthStateChange('INITIAL_SESSION', { user: initialUser });
 
     } catch (error: any) {
-      console.error("Init auth error:", error);
-      if (retryCount < MAX_RETRY) {
-        setTimeout(() => {
-          if (mountedRef.current) {
-            setRetryCount(prev => prev + 1);
-            initializeAuth();
-          }
-        }, 1000);
-      } else {
-        setError("Gagal menginisialisasi autentikasi");
-      }
-    } finally {
-      if (mountedRef.current && !isProcessingRef.current) {
-        setLoadingState(false);
-      }
-    }
-  }, [supabase, handleAuthChange, setLoadingState, pathname, router, retryCount]);
+      if (!mountedRef.current) return;
 
-  // Setup effect - simplified
+      console.error("AuthContext: Error in initializeAuth:", error.message);
+      setError(`Gagal menginisialisasi autentikasi: ${error.message}`);
+      setLoadingWithTimeout(false);
+    }
+  }, [supabase, handleAuthStateChange, setLoadingWithTimeout]);
+
+  const retry = useCallback(async () => {
+    if (retryCount >= MAX_RETRY_ATTEMPTS) {
+      console.warn("AuthContext: Max retry attempts reached");
+      return;
+    }
+
+    setRetryCount(prev => prev + 1);
+    await initializeAuth();
+  }, [retryCount, initializeAuth]);
+
+  // Setup auth listener dan initialization
   useEffect(() => {
     mountedRef.current = true;
 
-    // Setup auth listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(handleAuthChange);
+    // Setup auth state listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    authListenerRef.current = authListener;
 
-    // Initialize
+    // Initialize auth
     initializeAuth();
 
     return () => {
       mountedRef.current = false;
-      isProcessingRef.current = false;
       clearLoadingTimeout();
-      authListener.subscription.unsubscribe();
+
+      if (authListenerRef.current?.subscription) {
+        authListenerRef.current.subscription.unsubscribe();
+      }
     };
-  }, []);
+  }, [supabase, handleAuthStateChange, initializeAuth, clearLoadingTimeout]);
 
-  // REMOVED: Complex visibility change handler - ini yang sering jadi masalah
-  // Supabase auth listener sudah handle session changes secara otomatis
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      clearLoadingTimeout();
+    };
+  }, [clearLoadingTimeout]);
 
-  const signOut = useCallback(async () => {
+  const signOut = async () => {
     if (!mountedRef.current) return;
 
-    setLoadingState(true);
+    setLoadingWithTimeout(true);
     setError(null);
 
     try {
       await supabase.auth.signOut();
       if (mountedRef.current) {
         setUser(null);
-        router.push(SIGN_IN_PATH);
+        router.refresh();
       }
     } catch (error: any) {
-      console.error("Sign out error:", error);
+      console.error("AuthContext: Error during sign out:", error);
       if (mountedRef.current) {
         setError(`Gagal sign out: ${error.message}`);
       }
     } finally {
       if (mountedRef.current) {
-        setLoadingState(false);
+        setLoadingWithTimeout(false);
       }
     }
-  }, [supabase, router, setLoadingState]);
-
-  const retry = useCallback(async () => {
-    if (retryCount >= MAX_RETRY) return;
-
-    setRetryCount(prev => prev + 1);
-    setError(null);
-    await initializeAuth();
-  }, [retryCount, initializeAuth]);
+  };
 
   return (
     <AuthContext.Provider value={{ user, isLoading, error, signOut, retry }}>
