@@ -30,23 +30,24 @@ export default function Home() {
 
       console.log("HomeRedirect: 1. Attempting to get user session...");
 
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      let { data: { session }, error: sessionError } = await supabase.auth.getSession();
       console.log("HomeRedirect: 1.1. getSession result", { hasSession: !!session, sessionError });
 
-      if (sessionError) {
-        console.error("HomeRedirect: Session error:", sessionError.message);
-        sessionStorage.removeItem(SESSION_STORAGE_LOGIN_NOTIFICATION_SHOWN_KEY);
-        router.push(SIGN_IN_PATH);
-        setLoading(false);
-        return;
-      }
-
+      // Jika session null, coba refresh session dulu
       if (!session) {
-        console.log("HomeRedirect: No session found, redirecting to sign-in.");
-        sessionStorage.removeItem(SESSION_STORAGE_LOGIN_NOTIFICATION_SHOWN_KEY);
-        router.push(SIGN_IN_PATH);
-        setLoading(false);
-        return;
+        console.log("HomeRedirect: No session found, trying to refresh session...");
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        session = refreshed?.session;
+        if (refreshError) {
+          console.error("HomeRedirect: Refresh session error:", refreshError.message);
+        }
+        if (!session) {
+          console.log("HomeRedirect: Session still null after refresh, redirecting to sign-in.");
+          sessionStorage.removeItem(SESSION_STORAGE_LOGIN_NOTIFICATION_SHOWN_KEY);
+          router.push(SIGN_IN_PATH);
+          setLoading(false);
+          return;
+        }
       }
 
       // Sekarang ambil user data

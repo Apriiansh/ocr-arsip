@@ -192,6 +192,10 @@ export const signInAction = async (formData: FormData): Promise<ApiResponse> => 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
 
+    // Log session after sign in
+    const session = await supabase.auth.getSession();
+    console.log('[AUTH DEBUG] Session after sign in:', session);
+
     // Get user and role
     const { user, error: userError } = await getAuthenticatedUser(supabase);
     if (userError || !user) throw new Error(userError || "Gagal mendapatkan data pengguna");

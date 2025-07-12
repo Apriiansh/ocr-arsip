@@ -53,9 +53,17 @@ export default function LaporanArsipAktifKepalaDinas() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc'); // Default sort direction ascending for nomor_berkas
   const itemsPerPage = 10;
 
+  // Tambahkan state untuk semester dan tahun
+  const [selectedSemester, setSelectedSemester] = useState<'jan-jun' | 'jul-des'>('jan-jun');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
   const ALLOWED_ROLE = "Kepala_Dinas";
   const SIGN_IN_PATH = "/sign-in";
   const DEFAULT_HOME_PATH = "/";
+
+  // Generate daftar tahun (misal 2015 hingga tahun sekarang)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: currentYear - 2014 }, (_, i) => 2015 + i);
 
   const fetchBidangList = useCallback(async () => {
     const { data, error } = await supabase
@@ -215,6 +223,14 @@ export default function LaporanArsipAktifKepalaDinas() {
     setCurrentPage(1); // Reset to first page on sort change
   };
 
+  // Handler untuk dropdown semester dan tahun
+  const handleSemesterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedSemester(e.target.value as 'jan-jun' | 'jul-des');
+  };
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedYear(parseInt(e.target.value));
+  };
+
   // Optimasi fungsi fetchAllArsipForExport
   const fetchAllArsipForExport = async (periode?: { startDate: string, endDate: string }): Promise<ArsipAktifLaporanRow[]> => {
     try {
@@ -315,26 +331,18 @@ export default function LaporanArsipAktifKepalaDinas() {
   // Optimasi handleExportExcel dengan progress tracking
   const handleExportExcel = useCallback(async () => {
     setIsExporting(true);
-
     try {
-      console.log('Starting export process...');
-
-      const today = new Date();
-      const currentMonth = today.getMonth();
-      const currentYear = today.getFullYear();
-
       let startDate: Date;
       let endDate: Date;
       let periodeString: string;
-
-      if (currentMonth >= 0 && currentMonth <= 5) {
-        startDate = new Date(currentYear, 0, 1);
-        endDate = new Date(currentYear, 5, 30, 23, 59, 59, 999);
-        periodeString = `Januari - Juni ${currentYear}`;
+      if (selectedSemester === 'jan-jun') {
+        startDate = new Date(selectedYear, 0, 1);
+        endDate = new Date(selectedYear, 5, 30, 23, 59, 59, 999);
+        periodeString = `Januari - Juni ${selectedYear}`;
       } else {
-        startDate = new Date(currentYear, 6, 1);
-        endDate = new Date(currentYear, 11, 31, 23, 59, 59, 999);
-        periodeString = `Juli - Desember ${currentYear}`;
+        startDate = new Date(selectedYear, 6, 1);
+        endDate = new Date(selectedYear, 11, 31, 23, 59, 59, 999);
+        periodeString = `Juli - Desember ${selectedYear}`;
       }
 
       console.log(`Fetching data for period: ${periodeString}`);
@@ -369,21 +377,15 @@ export default function LaporanArsipAktifKepalaDinas() {
     } finally {
       setIsExporting(false);
     }
-  }, [supabase]);
+  }, [supabase, selectedSemester, selectedYear]);
 
-  // Calculate periodeString for display on the button
+  // Periode string untuk button
   let displayPeriodeString: string;
-  const todayForButton = new Date();
-  const currentMonthForButton = todayForButton.getMonth();
-  const currentYearForButton = todayForButton.getFullYear();
-
-  if (currentMonthForButton >= 0 && currentMonthForButton <= 5) { // Januari hingga Juni
-    displayPeriodeString = `Januari - Juni ${currentYearForButton}`;
-  } else { // Juli hingga Desember
-    displayPeriodeString = `Juli - Desember ${currentYearForButton}`;
+  if (selectedSemester === 'jan-jun') {
+    displayPeriodeString = `Januari - Juni ${selectedYear}`;
+  } else {
+    displayPeriodeString = `Juli - Desember ${selectedYear}`;
   }
-  // End of periodeString calculation for button
-
 
   return (
     <div className="w-full h-full p-6"> {/* Consistent page padding */}
@@ -393,14 +395,37 @@ export default function LaporanArsipAktifKepalaDinas() {
             <h2 className="text-2xl font-bold flex items-center gap-2 text-primary">
               <BarChartBig size={24} /> Laporan Arsip Aktif (Telah Diverifikasi)
             </h2>
-            <button
-              onClick={handleExportExcel}
-              disabled={isExporting || loading}
-              className="inline-flex items-center gap-2 px-4 py-2 border border-green-600 text-green-600 rounded-lg text-sm font-medium hover:bg-green-600 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <FileSpreadsheet size={18} />
-              {isExporting ? "Mengekspor..." : `Export Laporan Excel (${displayPeriodeString})`}
-            </button>
+
+            {/* Tambahkan dropdown semester dan tahun */}
+            <div className="flex flex-col sm:flex-row gap-2 items-center">
+              <select
+                value={selectedSemester}
+                onChange={handleSemesterChange}
+                className="px-3 py-2 border rounded-lg text-sm bg-input text-foreground"
+                style={{ minWidth: 160 }}
+              >
+                <option value="jan-jun">Januari - Juni</option>
+                <option value="jul-des">Juli - Desember</option>
+              </select>
+              <select
+                value={selectedYear}
+                onChange={handleYearChange}
+                className="px-3 py-2 border rounded-lg text-sm bg-input text-foreground"
+                style={{ minWidth: 120 }}
+              >
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleExportExcel}
+                disabled={isExporting || loading}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-green-600 text-green-600 rounded-lg text-sm font-medium hover:bg-green-600 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileSpreadsheet size={18} />
+                {isExporting ? "Mengekspor..." : `Export Laporan Excel (${displayPeriodeString})`}
+              </button>
+            </div>
           </div>
 
           <div className="p-6 border-b border-border/50 space-y-4"> {/* Adjusted border */}

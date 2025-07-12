@@ -221,17 +221,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
 
     try {
-      // Get initial user dengan timeout
+      // Get initial session dan user dengan timeout
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Auth initialization timeout')), 5000)
       );
 
-      const authPromise = supabase.auth.getUser();
+      // Logging session dan user
+      const sessionResult = await supabase.auth.getSession();
+      console.log('AuthContext: getSession() result on mount:', sessionResult);
+      if (sessionResult?.data?.session) {
+        console.log('AuthContext: Session detail:', sessionResult.data.session);
+      } else {
+        console.warn('AuthContext: No session found in getSession() result');
+      }
 
+      console.log('AuthContext: Calling getUser()...');
+      const authPromise = supabase.auth.getUser();
       const { data: { user: initialUser }, error: authError } = await Promise.race([
         authPromise,
         timeoutPromise
       ]) as any;
+      console.log('AuthContext: getUser() result on mount:', { initialUser, authError });
 
       if (!mountedRef.current) return;
 

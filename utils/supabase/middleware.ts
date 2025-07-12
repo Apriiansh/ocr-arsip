@@ -46,7 +46,7 @@ export const updateSession = async (request: NextRequest) => {
     const rootPaths = ["/", ""]; // Root paths yang langsung redirect ke sign-in tanpa parameter
     
     // Paths yang dianggap sebagai "landing pages" atau entry points
-    const entryPaths = ["/", "/user", "unit-pengolah", "unit-kearsipan", "kepala-dinas", "admin"]; // Paths yang tidak perlu redirectedFrom
+    const entryPaths = ["/", "/user", "/unit-pengolah", "/unit-kearsipan", "/kepala-dinas", "/admin"]; // Paths yang tidak perlu redirectedFrom
 
     // Make auth route check more precise
     const isAuthRoute = authRoutes.some(route => pathname === route || pathname.startsWith(route + '/'));
@@ -63,15 +63,13 @@ export const updateSession = async (request: NextRequest) => {
     // selalu coba ambil sesi pengguna. Jika tidak ada sesi, redirect ke sign-in.
     if (!isPublicRoute) {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      // Untuk root dan entry path, JANGAN redirect dari middleware, biarkan client-side yang handle
+      if (!session && !isRootPath && !isEntryPath && pathname !== "/favicon.ico" && !pathname.startsWith("/_next")) {
         const redirectUrl = new URL("/sign-in", request.url);
-        
-        if (!isRootPath && !isEntryPath && pathname !== "/favicon.ico" && !pathname.startsWith("/_next")) {
-          redirectUrl.searchParams.set('redirectedFrom', pathname);
-        }
-        
+        redirectUrl.searchParams.set('redirectedFrom', pathname);
         return NextResponse.redirect(redirectUrl);
       }
+      // Untuk root/entry path, biarkan lewat (client-side akan handle redirect jika perlu)
     }
 
     return response;
