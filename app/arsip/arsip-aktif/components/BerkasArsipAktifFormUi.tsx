@@ -213,23 +213,25 @@ export default function BerkasArsipAktifFormUI({
 
             {/* Kolom Kanan */}
             <div className="space-y-6">
-              {/* Media Simpan */}
+              {/* Media Simpan - HIDDEN, tidak ditampilkan di form */}
+              {/*
               <div>
-                <label htmlFor="mediaSimpanInput" className="block text-foreground font-medium mb-2">Media Simpan</label>
-                <select
-                  id="mediaSimpanInput"
-                  name="media_simpan"
-                  value={formData.media_simpan ?? ''}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring bg-input text-foreground placeholder-muted-foreground"
-                  required
-                  disabled={submitting}
-                >
-                  <option value="">Pilih Media Penyimpanan</option>
-                  <option value="Filing Cabinet">Filing Cabinet</option>
-                  <option value="Digital">Srikandi</option>
-                </select>
+                  <label htmlFor="mediaSimpanInput" className="block text-foreground font-medium mb-2">Media Simpan</label>
+                  <select
+                    id="mediaSimpanInput"
+                    name="media_simpan"
+                    value={formData.media_simpan ?? ''}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring bg-input text-foreground placeholder-muted-foreground"
+                    required
+                    disabled={submitting}
+                  >
+                    <option value="">Pilih Media Penyimpanan</option>
+                    <option value="Filing Cabinet">Filing Cabinet</option>
+                    <option value="Digital">Srikandi</option>
+                  </select>
               </div>
+              */}
 
               {/* Jumlah Berkas */}
               <div>
